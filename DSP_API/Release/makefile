@@ -42,7 +42,7 @@ clean:
 
 post-build:
 	-@echo 'Install in BeagleBone at /home/debian/bin'
-	-scp freedv root@192.168.20.33:/home/debian/bin/
+	-#scp freedv root@192.168.20.33:/home/debian/bin/
 	-@echo ' '
 
 .PHONY: all clean dependents
