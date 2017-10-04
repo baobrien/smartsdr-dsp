@@ -37,7 +37,7 @@ freedv: $(OBJS) $(USER_OBJS)
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES) $(OBJS) $(C_DEPS) freedv 
+	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) freedv
 	-@echo ' '
 
 post-build:

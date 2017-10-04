@@ -21,3 +21,15 @@
 *.i*86
 *.x86_64
 *.hex
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.tbz2
+*.tar.bz2
+
+# Eclipse-generated build/project directories
+DSP_API/Debug_Host
+
