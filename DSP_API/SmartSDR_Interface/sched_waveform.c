@@ -270,11 +270,7 @@ static void* _sched_waveform_thread(void* param)
     int		initial_tx = 1; 		// Flags for TX circular buffer, clear if starting transmit
     int		initial_rx = 1;			// Flags for RX circular buffer, clear if starting receive
 
-	// VOCODER I/O BUFFERS
-    short	speech_in[FREEDV_NSAMPLES];
-    short 	speech_out[FREEDV_NSAMPLES];
-    short 	demod_in[FREEDV_NSAMPLES];
-    short 	mod_out[FREEDV_NSAMPLES];
+
 
     // RX RESAMPLER I/O BUFFERS
     float 	float_in_8k[PACKET_SAMPLES + FILTER_TAPS];
@@ -297,6 +293,16 @@ static void* _sched_waveform_thread(void* param)
     // =======================  Initialization Section =========================
     _freedvS = freedv_open(FREEDV_MODE_1600);	// Default system, only
     //assert(_freedvS != NULL);					// debug only
+
+    size_t freedv_nsamp_audio = freedv_get_n_speech_samples(_freedvS);
+    size_t freedv_nsamp_rf = freedv_get_n_max_modem_samples(_freedvS);
+
+	// VOCODER I/O BUFFERS
+    short	speech_in[freedv_nsamp_audio];
+    short 	speech_out[freedv_nsamp_audio];
+    short 	demod_in[freedv_nsamp_rf];
+    short 	mod_out[freedv_nsamp_rf];
+
 
     // Initialize the Circular Buffers
 
@@ -338,14 +344,16 @@ static void* _sched_waveform_thread(void* param)
 	initial_rx = TRUE;
 
     // initialize the rx callback
-    _freedvS->freedv_put_next_rx_char = &my_put_next_rx_char;
+    //_freedvS->freedv_put_next_rx_char = &my_put_next_rx_char;
+
 
     // Set up callback for txt msg chars
     // clear tx_string
     memset(_my_cb_state.tx_str,0,80);
     _my_cb_state.ptx_str = _my_cb_state.tx_str;
-    _freedvS->callback_state = (void*)&_my_cb_state;
-    _freedvS->freedv_get_next_tx_char = &my_get_next_tx_char;
+    //_freedvS->callback_state = (void*)&_my_cb_state;
+    //_freedvS->freedv_get_next_tx_char = &my_get_next_tx_char;
+    freedv_set_callback_txt(_freedvS, my_put_next_rx_char, my_get_next_tx_char, &_my_cb_state);
 
     uint32 bypass_count = 0;
     BOOL bypass_demod = TRUE;
@@ -453,7 +461,7 @@ static void* _sched_waveform_thread(void* param)
 
 
 
-								if ( _freedvS->fdmdv_stats.sync ) {
+								if ( freedv_get_sync(_freedvS) ) {
 									/* Increase count for turning bypass off */
 									if ( bypass_count < 10) bypass_count++;
 								} else {

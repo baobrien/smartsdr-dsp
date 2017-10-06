@@ -89,27 +89,27 @@ static float
 cheb_poly_eva(float *coef,float x,int order)
 /*  float coef[]  	coefficients of the polynomial to be evaluated 	*/
 /*  float x   		the point where polynomial is to be evaluated 	*/
-/*  int order 		order of the polynomial 						*/
+/*  int order 		order of the polynomial 			*/
 {
     int i;
     float *t,*u,*v,sum;
     float T[(order / 2) + 1];
 
-    /* Initialize pointers */
+    /* Initialise pointers */
 
-    t = T;              	/* T[i-2] 										*/
+    t = T;                          	/* T[i-2] 			*/
     *t++ = 1.0;
-    u = t--;           		/* T[i-1] 										*/
+    u = t--;                        	/* T[i-1] 			*/
     *u++ = x;
-    v = u--;           		/* T[i] 										*/
+    v = u--;                        	/* T[i] 			*/
 
     /* Evaluate chebyshev series formulation using iterative approach 	*/
 
     for(i=2;i<=order/2;i++)
-	*v++ = (2*x)*(*u++) - *t++;  	/* T[i] = 2*x*T[i-1] - T[i-2]			*/
+	*v++ = (2*x)*(*u++) - *t++;  	/* T[i] = 2*x*T[i-1] - T[i-2]	*/
 
-    sum=0.0;                     	/* initialise sum to zero 				*/
-    t = T;                       	/* reset pointer 						*/
+    sum=0.0;                        	/* initialise sum to zero 	*/
+    t = T;                          	/* reset pointer 		*/
 
     /* Evaluate polynomial and return value also free memory space */
 
@@ -150,7 +150,7 @@ int lpc_to_lsp (float *a, int order, float *freq, int nb, float delta)
     float Q[order + 1];
     float P[order + 1];
 
-    flag = 1;                	
+    flag = 1;
     m = order/2;            	/* order of P'(z) & Q'(z) polynimials 	*/
 
     /* Allocate memory space for polynomials */
@@ -241,7 +241,7 @@ int lpc_to_lsp (float *a, int order, float *freq, int nb, float delta)
     /* convert from x domain to radians */
 
     for(i=0; i<order; i++) {
-	freq[i] = acos(freq[i]);
+	freq[i] = acosf(freq[i]);
     }
 
     return(roots);
@@ -270,11 +270,11 @@ void lsp_to_lpc(float *lsp, float *ak, int order)
     float *pw,*n1,*n2,*n3,*n4 = 0;
     float freq[order];
     float Wp[(order * 4) + 2];
-    
+
     /* convert from radians to the x=cos(w) domain */
 
     for(i=0; i<order; i++)
-	freq[i] = cos(lsp[i]);
+	freq[i] = cosf(lsp[i]);
 
     pw = Wp;
 

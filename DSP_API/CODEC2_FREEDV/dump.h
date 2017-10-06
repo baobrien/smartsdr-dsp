@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------*\
-                                                                             
+
   FILE........: dump.h
-  AUTHOR......: David Rowe                                                          
-  DATE CREATED: 25/8/09                                                       
-                                                                             
+  AUTHOR......: David Rowe
+  DATE CREATED: 25/8/09
+
   Routines to dump data to text files for Octave analysis.
 
 \*---------------------------------------------------------------------------*/
@@ -28,28 +28,30 @@
 
 #include "defines.h"
 #include "comp.h"
-#include "kiss_fft.h"
+#include "codec2_fft.h"
 #include "codec2_internal.h"
 
 void dump_on(char filename_prefix[]);
 void dump_off();
 
-void dump_Sn(float Sn[]);
+void dump_Sn(int m_pitch, float Sn[]);
 void dump_Sw(COMP Sw[]);
 void dump_Sw_(COMP Sw_[]);
 void dump_Ew(COMP Ew[]);
+void dump_softdec(float *softdec, int n);
 
 /* amplitude modelling */
 
 void dump_model(MODEL *m);
 void dump_quantised_model(MODEL *m);
 void dump_Pwn(COMP Pw[]);
-void dump_Pw(COMP Pw[]);
+void dump_Pw(float Pw[]);
 void dump_Rw(float Rw[]);
 void dump_lsp(float lsp[]);
 void dump_weights(float w[], int ndim);
 void dump_lsp_(float lsp_[]);
-void dump_mel(int mel[]);
+void dump_mel(float mel[], int order);
+void dump_mel_indexes(int mel_indexes[], int order);
 void dump_ak(float ak[], int order);
 void dump_ak_(float ak[], int order);
 void dump_E(float E);
@@ -64,15 +66,17 @@ void dump_hephase(int ind[], int dim);
 
 /* NLP states */
 
-void dump_sq(float sq[]);
+void dump_sq(int m_pitch, float sq[]);
 void dump_dec(COMP Fw[]);
 void dump_Fw(COMP Fw[]);
 void dump_e(float e_hz[]);
+#if 0
 void dump_Rk(float Rk[]);
+#endif
 
 /* post filter */
 
 void dump_bg(float e, float bg_est, float percent_uv);
-void dump_Pwb(COMP Pwb[]);
+void dump_Pwb(float Pwb[]);
 
 #endif

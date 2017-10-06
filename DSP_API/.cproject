@@ -51,6 +51,20 @@
 							</tool>
 						</toolChain>
 					</folderInfo>
+					<folderInfo id="cdt.managedbuild.config.gnu.exe.debug.1657845058.1672155574" name="/" resourcePath="Debug_Host">
+						<toolChain id="cdt.managedbuild.toolchain.gnu.exe.debug.1739582853" name="Linux GCC" superClass="cdt.managedbuild.toolchain.gnu.exe.debug" unusedChildren="">
+							<tool id="cdt.managedbuild.tool.gnu.archiver.base.812897551" name="GCC Archiver" superClass="cdt.managedbuild.tool.gnu.archiver.base.378388625"/>
+							<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.132807460" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.452072644"/>
+							<tool id="cdt.managedbuild.tool.gnu.c.compiler.exe.debug.578162788" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.exe.debug.1129794659">
+								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.657276205" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
+							</tool>
+							<tool id="cdt.managedbuild.tool.gnu.c.linker.exe.debug.1600987021" name="GCC C Linker" superClass="cdt.managedbuild.tool.gnu.c.linker.exe.debug.1232021528"/>
+							<tool id="cdt.managedbuild.tool.gnu.cpp.linker.exe.debug.128828009" name="GCC C++ Linker" superClass="cdt.managedbuild.tool.gnu.cpp.linker.exe.debug.636258136"/>
+							<tool id="cdt.managedbuild.tool.gnu.assembler.exe.debug.1208395577" name="GCC Assembler" superClass="cdt.managedbuild.tool.gnu.assembler.exe.debug.245282209">
+								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.1604410437" superClass="cdt.managedbuild.tool.gnu.assembler.input"/>
+							</tool>
+						</toolChain>
+					</folderInfo>
 				</configuration>
 			</storageModule>
 			<storageModule moduleId="org.eclipse.cdt.core.externalSettings"/>
@@ -169,15 +183,6 @@
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
 		<project id="DSP_API.cdt.managedbuild.target.gnu.exe.1129142882" name="Executable" projectType="cdt.managedbuild.target.gnu.exe"/>
 	</storageModule>
-	<storageModule moduleId="scannerConfiguration">
-		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.exe.debug.1657845058;cdt.managedbuild.config.gnu.exe.debug.1657845058.;cdt.managedbuild.tool.gnu.c.compiler.exe.debug.1129794659;cdt.managedbuild.tool.gnu.c.compiler.input.169997605">
-			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.managedbuilder.core.GCCManagedMakePerProjectProfileC"/>
-		</scannerConfigBuildInfo>
-		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.exe.release.2130310972;cdt.managedbuild.config.gnu.exe.release.2130310972.;cdt.managedbuild.tool.gnu.c.compiler.exe.release.266717095;cdt.managedbuild.tool.gnu.c.compiler.input.297736145">
-			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.managedbuilder.core.GCCManagedMakePerProjectProfileC"/>
-		</scannerConfigBuildInfo>
-	</storageModule>
 	<storageModule moduleId="refreshScope" versionNumber="2">
 		<configuration configurationName="Debug_Host">
 			<resource resourceType="PROJECT" workspacePath="/DSP_API"/>
@@ -195,4 +200,13 @@
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
 	<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
+	<storageModule moduleId="scannerConfiguration">
+		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.exe.release.2130310972;cdt.managedbuild.config.gnu.exe.release.2130310972.;cdt.managedbuild.tool.gnu.c.compiler.exe.release.266717095;cdt.managedbuild.tool.gnu.c.compiler.input.297736145">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.managedbuilder.core.GCCManagedMakePerProjectProfileC"/>
+		</scannerConfigBuildInfo>
+		<scannerConfigBuildInfo instanceId="cdt.managedbuild.config.gnu.exe.debug.1657845058;cdt.managedbuild.config.gnu.exe.debug.1657845058.;cdt.managedbuild.tool.gnu.c.compiler.exe.debug.1129794659;cdt.managedbuild.tool.gnu.c.compiler.input.169997605">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="org.eclipse.cdt.managedbuilder.core.GCCManagedMakePerProjectProfileC"/>
+		</scannerConfigBuildInfo>
+	</storageModule>
 </cproject>

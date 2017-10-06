@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------*\
-                                                                             
-  FILE........: phase.h                                          
-  AUTHOR......: David Rowe                                             
-  DATE CREATED: 1/2/09                                                 
-                                                                             
+
+  FILE........: phase.h
+  AUTHOR......: David Rowe
+  DATE CREATED: 1/2/09
+
   Functions for modelling phase.
-                                                                             
+
 \*---------------------------------------------------------------------------*/
 
 /*
@@ -28,12 +28,12 @@
 #ifndef __PHASE__
 #define __PHASE__
 
-#include "kiss_fft.h"
+#include "codec2_fft.h"
 #include "comp.h"
 
-void phase_synth_zero_order(kiss_fft_cfg fft_dec_cfg, 
-			    MODEL *model, 
-                            float *ex_phase,
-                            COMP   A[]);
+void sample_phase(MODEL *model, COMP filter_phase[], COMP A[]);
+void phase_synth_zero_order(int n_samp, MODEL *model, float *ex_phase, COMP filter_phase[]);
+
+void mag_to_phase(float phase[], float Gdbfk[], int Nfft, codec2_fft_cfg fwd_cfg, codec2_fft_cfg inv_cfg);
 
 #endif
