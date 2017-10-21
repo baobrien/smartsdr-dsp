@@ -23,9 +23,26 @@
  *
  **************************************************************************** */
 
-#ifndef MAIN_H_
-#define MAIN_H_
+#ifndef FDV_MAIN_H_
+#define FDV_MAIN_H_
+
+#include "freedv_api.h"
+
+
+typedef struct {
+	char	fdv_mode_name[7];		//FreeDV mode string
+	int		fdv_mode_idx;			//FreeDV API mode index
+	int		lower_sideband_allowed;	//Allow LSB operation of this mode
+	int 	filter_low;				//Low end of rx filter
+	int		filter_high;			//High end of rx filter
+} freedv_mode_info_t;
+
+const int FreeDV_modes_count;
+
+const freedv_mode_info_t FreeDV_modes[4];
 
 void freedv_set_string(uint32 slice, char* string);
+void freedv_set_mode(uint32 slice, int mode);
+void freedv_setup_filter(uint32 slice);
 
 #endif /* MAIN_H_ */

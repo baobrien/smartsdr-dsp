@@ -301,7 +301,7 @@ static void* _dc_ListenerLoop(void* param)
 void dc_Init(const char * radio_ip)
 {
 	output("Discovery Client Init: Opening socket");
-	int true = TRUE;
+	int strue = TRUE;
 	if((_dc_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
 	{
 		output("...failed! (socket call returned -1)\n");
@@ -320,7 +320,7 @@ void dc_Init(const char * radio_ip)
 	 * that both processes can bind to the same VITA port
 	 */
 	errno = 0;
-	setsockopt(_dc_sock, SOL_SOCKET, SO_REUSEADDR, &true, sizeof(true));
+	setsockopt(_dc_sock, SOL_SOCKET, SO_REUSEADDR, &strue, sizeof(strue));
 	if (errno)
 	{
 		output("error with reuse option: errno=%d",errno);

@@ -54,7 +54,7 @@
 #include "cmd.h"
 
 #include "main.h"
-
+#include "freedv_api.h"
 
 /* *****************************************************************************
  *	uint32 cmd_banner(void)
@@ -245,6 +245,13 @@ uint32 cmd_undefined(int requester_fd, int argc, char **argv)
 uint32 cmd_slice(int requester_fd, int argc, char **argv)
 {
     uint32 slc = INVALID_SLICE_RX;
+    size_t i;
+    // TODO: this is brady debugging; remove
+	output(ANSI_GREEN "slice command: ");
+    for(int i=0; i<argc; i++){
+    	output("%s ",argv[i]);
+    }
+    output("\n");
 
     if (strcmp(argv[0], "slice") == 0)
     {
@@ -267,6 +274,37 @@ uint32 cmd_slice(int requester_fd, int argc, char **argv)
             char* new_string = argv[2]+strlen("string")+1;
             charReplace(new_string, (char) 0x7F, ' ');
             freedv_set_string(slc, new_string);
+            return SUCCESS;
+        }
+
+        // TODO: a bunch of mode-related setup
+        if(strncmp(argv[2], "mode", strlen("mode")) == 0)
+        {
+            char* mode_string = argv[2]+strlen("mode")+1;
+
+            // Bad mode
+            if(strlen(mode_string)<5)
+            {
+            	return SL_BAD_COMMAND;
+            }
+
+            char  sideband_string =  mode_string[0];
+            char* fdv_mode_string = &mode_string[1];
+
+        	freedv_mode_info_t modeinfo = {"", -1, 0, 0, 0};
+        	for(i=0; i<FreeDV_modes_count; i++){
+        		if( strncmp(fdv_mode_string,FreeDV_modes[i].fdv_mode_name,strlen(FreeDV_modes[i].fdv_mode_name)) == 0){
+        			modeinfo = FreeDV_modes[i];
+        		}
+        	}
+
+            // Also a bad mode
+            if(modeinfo.fdv_mode_idx < 0){
+            	return SL_BAD_COMMAND;
+            }
+
+            freedv_set_mode(slc, modeinfo.fdv_mode_idx);
+            freedv_setup_filter(slc);
             return SUCCESS;
         }
     }

@@ -74,6 +74,14 @@ typedef struct _sig_ucontext {
 	sigset_t          uc_sigmask;
 } sig_ucontext_t;
 
+const int FreeDV_modes_count = 3;
+
+const freedv_mode_info_t FreeDV_modes[4] = {
+		{"1600",  FREEDV_MODE_1600,  1,  600,2400},
+		{"700C",  FREEDV_MODE_700C,  1,  600,2400},
+		{"2400A", FREEDV_MODE_2400A, 0,  600,5600},
+		{"", -1, 0, 0, 0}
+};
 
 extern char *strsignal (int __sig);
 void segfault_sigaction(int signal, siginfo_t *si, void *arg)
