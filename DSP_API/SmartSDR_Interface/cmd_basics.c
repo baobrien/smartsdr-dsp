@@ -304,6 +304,7 @@ uint32 cmd_slice(int requester_fd, int argc, char **argv)
             }
 
             freedv_set_mode(slc, modeinfo.fdv_mode_idx);
+            freedv_set_sideband(slc,sideband_string);
             freedv_setup_filter(slc);
             return SUCCESS;
         }

@@ -37,6 +37,7 @@
 #include <semaphore.h>
 #include <string.h>		// for memset
 #include <unistd.h>
+#include <complex.h>
 
 #include "common.h"
 #include "datatypes.h"
@@ -138,6 +139,7 @@ void sched_waveform_signal()
 #include "freedv_api.h"
 #include "circular_buffer.h"
 #include "resampler.h"
+#include "comp_prim.h"
 
 #define PACKET_SAMPLES  128
 
@@ -168,33 +170,15 @@ static BOOL _end_of_transmission = FALSE;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //	Circular Buffer Declarations
 
-float RX1_buff[(PACKET_SAMPLES * 12)+1];		// RX1 Packet Input Buffer
-short RX2_buff[(PACKET_SAMPLES * 12)+1];		// RX2 Vocoder input buffer
-short RX3_buff[(PACKET_SAMPLES * 12)+1];		// RX3 Vocoder output buffer
-float RX4_buff[(PACKET_SAMPLES * 12)+1];		// RX4 Packet output Buffer
+Circular_Float_Buffer RX1_cb;
+Circular_Float_Buffer RX2_cb;
+Circular_Short_Buffer RX3_cb;
+Circular_Float_Buffer RX4_cb;
 
-float TX1_buff[(PACKET_SAMPLES * 12) +1];		// TX1 Packet Input Buffer
-short TX2_buff[(PACKET_SAMPLES * 12)+1];		// TX2 Vocoder input buffer
-short TX3_buff[(PACKET_SAMPLES * 12)+1];		// TX3 Vocoder output buffer
-float TX4_buff[(PACKET_SAMPLES * 12)+1];		// TX4 Packet output Buffer
-
-circular_float_buffer rx1_cb;
-Circular_Float_Buffer RX1_cb = &rx1_cb;
-circular_short_buffer rx2_cb;
-Circular_Short_Buffer RX2_cb = &rx2_cb;
-circular_short_buffer rx3_cb;
-Circular_Short_Buffer RX3_cb = &rx3_cb;
-circular_float_buffer rx4_cb;
-Circular_Float_Buffer RX4_cb = &rx4_cb;
-
-circular_float_buffer tx1_cb;
-Circular_Float_Buffer TX1_cb = &tx1_cb;
-circular_short_buffer tx2_cb;
-Circular_Short_Buffer TX2_cb = &tx2_cb;
-circular_short_buffer tx3_cb;
-Circular_Short_Buffer TX3_cb = &tx3_cb;
-circular_float_buffer tx4_cb;
-Circular_Float_Buffer TX4_cb = &tx4_cb;
+Circular_Float_Buffer TX1_cb;
+Circular_Short_Buffer TX2_cb;
+Circular_Short_Buffer TX3_cb;
+Circular_Float_Buffer TX4_cb;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Callbacks for embedded ASCII stream, transmit and receive
@@ -277,6 +261,7 @@ void freedv_set_sideband(uint32 slice,char sideband){
 	if(sideband == 'U'){
 		sideband_mode = UPPER_SIDEBAND;
 	}
+	freedv_setup_filter(slice);
 }
 
 // Set rx filter to match FreeDV mode
@@ -375,6 +360,7 @@ static void* _sched_waveform_thread(void* param)
 
     int				mode_status_countdown = 0;	// Timer to keep track of loop iterations before re-sending the FDV mode status -- NOTE: only deincremented during freedv rx or tx
     const int		mode_status_time	  = 25; // How may loop iterations before resending mode status
+
     // RX RESAMPLER I/O BUFFERS
     float 	float_in_8k[PACKET_SAMPLES + FILTER_TAPS];
     float 	float_out_8k[PACKET_SAMPLES];
@@ -397,47 +383,26 @@ static void* _sched_waveform_thread(void* param)
 
     // Initialize the Circular Buffers
 
-	RX1_cb->size  = PACKET_SAMPLES*6 +1;		// size = no.elements in array+1
-	RX1_cb->start = 0;
-	RX1_cb->end	  = 0;
-	RX1_cb->elems = RX1_buff;
-	RX2_cb->size  = PACKET_SAMPLES*6 +1;		// size = no.elements in array+1
-	RX2_cb->start = 0;
-	RX2_cb->end	  = 0;
-	RX2_cb->elems = RX2_buff;
-	RX3_cb->size  = PACKET_SAMPLES*6 +1;		// size = no.elements in array+1
-	RX3_cb->start = 0;
-	RX3_cb->end	  = 0;
-	RX3_cb->elems = RX3_buff;
-	RX4_cb->size  = PACKET_SAMPLES*12 +1;		// size = no.elements in array+1
-	RX4_cb->start = 0;
-	RX4_cb->end	  = 0;
-	RX4_cb->elems = RX4_buff;
+	RX1_cb = cfbCreate(PACKET_SAMPLES*12 +1);
+	RX2_cb = cfbCreate(PACKET_SAMPLES*12 +1);
+	RX3_cb = csbCreate(PACKET_SAMPLES*12 +1);
+	RX4_cb = cfbCreate(PACKET_SAMPLES*12 +1);
 
-	TX1_cb->size  = PACKET_SAMPLES*6 +1;		// size = no.elements in array+1
-	TX1_cb->start = 0;
-	TX1_cb->end	  = 0;
-	TX1_cb->elems = TX1_buff;
-	TX2_cb->size  = PACKET_SAMPLES*6 +1;		// size = no.elements in array+1
-	TX2_cb->start = 0;
-	TX2_cb->end	  = 0;
-	TX2_cb->elems = TX2_buff;
-	TX3_cb->size  = PACKET_SAMPLES *6 +1;		// size = no.elements in array+1
-	TX3_cb->start = 0;
-	TX3_cb->end	  = 0;
-	TX3_cb->elems = TX3_buff;
-	TX4_cb->size  = PACKET_SAMPLES *12 +1;		// size = no.elements in array+1
-	TX4_cb->start = 0;
-	TX4_cb->end	  = 0;
-	TX4_cb->elems = TX4_buff;
+	TX1_cb = cfbCreate(PACKET_SAMPLES*12 +1);
+	TX2_cb = csbCreate(PACKET_SAMPLES*12 +1);
+	TX3_cb = csbCreate(PACKET_SAMPLES*12 +1);
+	TX4_cb = cfbCreate(PACKET_SAMPLES*12 +1);
 
 	initial_tx = TRUE;
 	initial_rx = TRUE;
 
     fdv_mode = FREEDV_MODE_1600;
-    sideband_mode = LOWER_SIDEBAND;
+    sideband_mode = UPPER_SIDEBAND;
     int fdv_mode_old = fdv_mode;
     _sched_waveform_change_fdv_mode();
+
+    //int rx_sideband_i = 0;	//LSB->USB conversion counter
+    //int tx_sideband_i = 0;  //USB->LSB conversion counter
 
     // Set up callback for txt msg chars
     // clear tx_string
@@ -470,7 +435,7 @@ static void* _sched_waveform_thread(void* param)
 				// VOCODER I/O BUFFERS
 			    short	speech_in[freedv_nsamp_audio];
 			    short 	speech_out[freedv_nsamp_audio];
-			    short 	demod_in[freedv_nsamp_rf];
+			    float 	demod_in[freedv_nsamp_rf];
 			    short 	mod_out[freedv_nsamp_rf];
 
 				buf_desc = _WaveformList_UnlinkHead();
@@ -519,12 +484,15 @@ static void* _sched_waveform_thread(void* param)
 						// Check for new receiver input packet & move to RX1_cb.
 						// TODO - If transmit packet, discard here?
 
-
+						// Since we're just converting to real and the spectrum is already filtered, we can just cheat
+						// with LSB conversion
 						for( i = 0 ; i < PACKET_SAMPLES ; i++)
 						{
 							//output("Outputting ")
 							//	fsample = Get next float from packet;
-							cbWriteFloat(RX1_cb, ((Complex*)buf_desc->buf_ptr)[i].real);
+							COMP csample = ((COMP*)buf_desc->buf_ptr)[i];
+
+							cbWriteFloat(RX1_cb, csample.real);
 
 						}
 
@@ -542,7 +510,7 @@ static void* _sched_waveform_thread(void* param)
 
 							for(i=0 ; i<128 ; i++)
 							{
-								cbWriteShort(RX2_cb, (short) (float_out_8k[i]*SCALE_RX_IN));
+								cbWriteFloat(RX2_cb, float_out_8k[i]);
 
 							}
 
@@ -556,15 +524,15 @@ static void* _sched_waveform_thread(void* param)
 							nin = freedv_nin(_freedvS); // TODO Is nin, nout really necessary?
 
 
-							if ( csbContains(RX2_cb) >= nin )
+							if ( cfbContains(RX2_cb) >= nin )
 							{
 	//
 								for( i=0 ; i< nin ; i++)
 								{
-									demod_in[i] = cbReadShort(RX2_cb);
+									demod_in[i] = cbReadFloat(RX2_cb);
 								}
 
-								nout = freedv_rx(_freedvS, speech_out, demod_in);
+								nout = freedv_floatrx(_freedvS, speech_out, demod_in);
 
 
 								if ( freedv_get_sync(_freedvS) ) {
@@ -585,7 +553,7 @@ static void* _sched_waveform_thread(void* param)
 								}
 								if ( bypass_demod ) {
 									for ( i = 0 ; i < nin ; i++ ) {
-										cbWriteShort(RX3_cb, demod_in[i]);
+										cbWriteShort(RX3_cb, (short)(demod_in[i] * SCALE_RX_OUT));
 									}
 								} else {
 									for( i=0 ; i < nout ; i++)
@@ -848,7 +816,18 @@ static void* _sched_waveform_thread(void* param)
 		}
 	}
 	_waveform_thread_abort = TRUE;
-	 freedv_close(_freedvS);
+	freedv_close(_freedvS);
+
+	cfbDestroy(RX1_cb);
+	csbDestroy(RX2_cb);
+	csbDestroy(RX3_cb);
+	cfbDestroy(RX4_cb);
+
+	cfbDestroy(TX1_cb);
+	csbDestroy(TX2_cb);
+	csbDestroy(TX3_cb);
+	cfbDestroy(TX4_cb);
+
 	return NULL;
 }
 

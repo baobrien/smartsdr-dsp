@@ -243,9 +243,172 @@ int csbContains(Circular_Short_Buffer cb)
 	if (contains < 0)
 		contains += cb->size;
 
-		return contains;
+	return contains;
 }
 
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  Complex BUFFER ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+/* *****************************************************************************
+ *	BOOL cfbIsFull(Circular_Comp_Buffer cb)
+ *		Test to check if the buffer is FULL
+ *		Returns TRUE if full
+ */
+
+bool ccbIsFull(Circular_Comp_Buffer cb)
+{
+	return ((cb->end + 1) % cb->size == cb->start);
+}
+
+
+/* *****************************************************************************
+ *	BOOL ccbIsEmpty(Circular_Comp_Buffer cb)
+ *		Test to check if the buffer is EMPTY
+ *		Returns TRUE if empty
+ */
+
+bool ccbIsEmpty(Circular_Comp_Buffer cb)
+{
+	return cb->end == cb->start;
+}
+
+
+/* *****************************************************************************
+ *	void cbWriteChar(Circular_Buffer cb, unsigned char temp)
+ *		Write an element, overwriting oldest element if buffer is full.
+ *		App can choose to avoid the overwrite by checking cbIsFull().
+ */
+
+void cbWriteComp(Circular_Comp_Buffer cb, Complex sample)
+{
+	cb->elems[cb->end] = sample;
+	cb->end = (cb->end + 1) % cb->size;
+	if (cb->end == cb->start)
+		cb->start = (cb->start + 1) % cb->size;		/* full, overwrite */
+}
+
+
+/* *****************************************************************************
+ *	unsigned char cbReadComp(Circular_Comp_Buffer *cb)
+ *		Returns oldest element.
+ *		Calling function must ensure [ccbIsEmpty() != TRUE], first.
+ */
+
+Complex cbReadComp(Circular_Comp_Buffer cb)
+{
+	Complex temp;
+
+	temp = cb->elems[cb->start];
+	cb->start = (cb->start + 1) % cb->size;
+	return temp;
+}
+
+
+/* *****************************************************************************
+ *	void zero_cfb(Circular_Comp_Buffer cb)
+ *
+ *		Empties circular buffer
+ */
+
+void zero_ccb(Circular_Comp_Buffer cb)
+{
+	cb->start = 0;
+	cb->end	 = 0;
+}
+
+
+/* *****************************************************************************
+ *	int ccbContains(Circular_Comp_Buffer cb)
+ *
+ *		Returns the number of samples in the circular buffer
+ *
+ */
+
+int ccbContains(Circular_Comp_Buffer cb)
+{
+	int contains;
+
+	contains = (cb->end - cb->start);
+	if (contains < 0)
+		contains += cb->size;
+
+	return contains;
+}
+
+
+Circular_Float_Buffer cfbCreate(size_t size){
+	float * elems = malloc(size*sizeof(float));
+	if(elems == NULL) return NULL;
+
+	Circular_Float_Buffer cfb = malloc(sizeof(circular_float_buffer));
+	if(cfb == NULL){
+		free(elems);
+		return NULL;
+	}
+	cfb->elems = elems;
+	cfb->size = size;
+	cfb->start = 0;
+	cfb->end = 0;
+
+	return cfb;
+}
+
+Circular_Short_Buffer csbCreate(size_t size){
+	short * elems = malloc(size*sizeof(short));
+	if(elems == NULL) return NULL;
+
+	Circular_Short_Buffer csb = malloc(sizeof(circular_short_buffer));
+	if(csb == NULL){
+		free(elems);
+		return NULL;
+	}
+	csb->elems = elems;
+	csb->size = size;
+	csb->start = 0;
+	csb->end = 0;
+
+	return csb;
+}
+
+Circular_Comp_Buffer  ccbCreate(size_t size){
+	Complex * elems = malloc(size*sizeof(Complex));
+	if(elems == NULL) return NULL;
+
+	Circular_Comp_Buffer ccb = malloc(sizeof(circular_comp_buffer));
+	if(ccb == NULL){
+		free(elems);
+		return NULL;
+	}
+	ccb->elems = elems;
+	ccb->size = size;
+	ccb->start = 0;
+	ccb->end = 0;
+
+	return ccb;
+}
+
+static void cbDestroy(void * circbuf, void * elems){
+	if(circbuf != NULL) free(circbuf);
+	if(elems   != NULL) free(elems);
+}
+
+void cfbDestroy(Circular_Float_Buffer buff){
+	void * elems = (void*) buff->elems;
+	cbDestroy((void*) buff, elems);
+}
+
+void csbDestroy(Circular_Short_Buffer buff){
+	void * elems = (void*) buff->elems;
+	cbDestroy((void*) buff, elems);
+}
+
+void ccbDestroy(Circular_Comp_Buffer  buff){
+	void * elems = (void*) buff->elems;
+	cbDestroy((void*) buff, elems);
+}
 
 // EoF =====-----
 

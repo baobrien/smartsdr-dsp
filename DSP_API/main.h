@@ -44,5 +44,6 @@ const freedv_mode_info_t FreeDV_modes[4];
 void freedv_set_string(uint32 slice, char* string);
 void freedv_set_mode(uint32 slice, int mode);
 void freedv_setup_filter(uint32 slice);
+void freedv_set_sideband(uint32 slice,char sideband);
 
 #endif /* MAIN_H_ */

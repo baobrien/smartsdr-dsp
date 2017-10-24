@@ -29,7 +29,7 @@
 
 
 #include <stdbool.h>
-
+#include <complex.h>
 
 /* Circular buffer objects */
 typedef struct {
@@ -46,6 +46,12 @@ typedef struct {
     float         *elems;   // Vector of elements
 } circular_float_buffer, *Circular_Float_Buffer;
 
+typedef struct {
+    unsigned int   size;    // Maximum number of elements + 1
+    unsigned int   start;   // Index of oldest element
+    unsigned int   end;     // Index at which to write new element
+    Complex       *elems;   // Vector of elements
+} circular_comp_buffer, *Circular_Comp_Buffer;
 
 /* *****************************************************************************
  *  Prototype Declarations
@@ -54,27 +60,41 @@ typedef struct {
 //  Returns TRUE if buffer is full
 bool cfbIsFull(Circular_Float_Buffer cb);
 bool csbIsFull(Circular_Short_Buffer cb);
+bool ccbIsFull(Circular_Comp_Buffer cb);
 
 //  Returns TRUE if buffer is empty
 bool cfbIsEmpty(Circular_Float_Buffer cb);
 bool csbIsEmpty(Circular_Short_Buffer cb);
+bool ccbIsEmpty(Circular_Comp_Buffer cb);
 
 //  Write an element, overwriting oldest element if buffer is full.
 //  App can choose to avoid the overwrite by checking cbIsFull().
 void cbWriteFloat(Circular_Float_Buffer cb, float sample);
 void cbWriteShort(Circular_Short_Buffer cb, short sample);
+void cbWriteComp(Circular_Comp_Buffer cb, Complex sample);
 
 //Read oldest element. App must ensure !cbIsEmpty() first.
 float cbReadFloat(Circular_Float_Buffer cb);
 short cbReadShort(Circular_Short_Buffer cb);
+Complex cbReadComp(Circular_Comp_Buffer cb);
 
 // Clear buffer
 void zero_cfb(Circular_Float_Buffer cb);
 void zero_csb(Circular_Short_Buffer cb);
+void zero_ccb(Circular_Comp_Buffer cb);
 
 // Returns number of samples in buffer
 int cfbContains(Circular_Float_Buffer cb);
 int csbContains(Circular_Short_Buffer cb);
+int ccbContains(Circular_Comp_Buffer cb);
+
+Circular_Float_Buffer cfbCreate(size_t size);
+Circular_Short_Buffer csbCreate(size_t size);
+Circular_Comp_Buffer  ccbCreate(size_t size);
+
+void cfbDestroy(Circular_Float_Buffer buff);
+void csbDestroy(Circular_Short_Buffer buff);
+void ccbDestroy(Circular_Comp_Buffer  buff);
 
 
 #endif /* CIRCULAR_BUFFER_H_ */
