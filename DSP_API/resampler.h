@@ -34,6 +34,7 @@
 
 void fdmdv_8_to_24(float out24k[], float in8k[], int n);
 void fdmdv_24_to_8(float out8k[], float in24k[], int n);
+void fdmdv_5k_cleanup(float out24k[], float in24k[], int n);
 
 
 #endif /* RESAMPLER_H_ */

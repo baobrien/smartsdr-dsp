@@ -246,12 +246,6 @@ uint32 cmd_slice(int requester_fd, int argc, char **argv)
 {
     uint32 slc = INVALID_SLICE_RX;
     size_t i;
-    // TODO: this is brady debugging; remove
-	output(ANSI_GREEN "slice command: ");
-    for(int i=0; i<argc; i++){
-    	output("%s ",argv[i]);
-    }
-    output("\n");
 
     if (strcmp(argv[0], "slice") == 0)
     {

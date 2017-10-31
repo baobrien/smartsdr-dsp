@@ -44,6 +44,7 @@ static void _handle_status(char* string)
     int argc;
     uint32 slc; // slice number
     char *argv[MAX_ARGC_STATUS + 1];       //Add one extra so we can null terminate the array
+    char api_cmd[80];
 
     // get the actual status message -- we don't care about the handle
     char* save = 0;
@@ -81,14 +82,21 @@ static void _handle_status(char* string)
                     // we are now in FDV mode
                     output(ANSI_MAGENTA "slice %d is now in FDV mode - sendig commands\n",slc);
 
-                    char cmd[512] = {0};
-                    sprintf(cmd, "slice s %d digu_offset=1500", slc);
-                    tc_sendSmartSDRcommand(cmd, FALSE, NULL);
+                    snprintf(api_cmd, 80, "slice s %d digu_offset=1500", slc);
+                    tc_sendSmartSDRcommand(api_cmd, FALSE, NULL);
+
+                    freedv_setup_filter(slc);
+
+					snprintf(api_cmd, 80, "transmit set raw_iq_enabled=1");
+					tc_sendSmartSDRcommand(api_cmd,FALSE,NULL);
                 }
                 else
                 {
                     // we have left FDV mode
                     output(ANSI_MAGENTA "slice %d is in %s mode\n",slc,smode);
+
+					snprintf(api_cmd, 80, "transmit set raw_iq_enabled=0");
+					tc_sendSmartSDRcommand(api_cmd,FALSE,NULL);
                 }
             }
             if(strncmp(argv[i], "in_use", strlen("in_use")) == 0)
@@ -108,11 +116,13 @@ static void _handle_status(char* string)
                 if (tx)
                 {
                     output(ANSI_MAGENTA "slice %d is the transmit slice\n",slc);
+
                 }
                 else
                 {
                     output(ANSI_MAGENTA "slice %d is NOT transmit slice\n",slc);
                 }
+
             }
         }
 

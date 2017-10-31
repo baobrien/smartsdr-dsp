@@ -44,6 +44,8 @@
 #include "hal_buffer.h"
 #include "sched_waveform.h"
 #include "vita_output.h"
+#include "freedv_api_internal.h"
+#include "fsk.h"
 
 //static Queue sched_fft_queue;
 static pthread_rwlock_t _list_lock;
@@ -177,8 +179,8 @@ Circular_Float_Buffer RX4_cb;
 
 Circular_Float_Buffer TX1_cb;
 Circular_Short_Buffer TX2_cb;
-Circular_Short_Buffer TX3_cb;
-Circular_Float_Buffer TX4_cb;
+Circular_Comp_Buffer  TX3_cb;
+Circular_Comp_Buffer  TX4_cb;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Callbacks for embedded ASCII stream, transmit and receive
@@ -332,7 +334,7 @@ static void _sched_waveform_send_mode_status(){
 //Set up or change the FreeDV struct after mode change
 static void _sched_waveform_change_fdv_mode(){
 	//Default to 1600 if we're not in an implemented or valid mode
-	if(! ( fdv_mode == FREEDV_MODE_1600 || fdv_mode == FREEDV_MODE_700C )){
+	if(! ( fdv_mode == FREEDV_MODE_1600 || fdv_mode == FREEDV_MODE_700C || fdv_mode == FREEDV_MODE_2400A)){
 		fdv_mode = FREEDV_MODE_1600;
 	}
 	// Tear down FreeDV struct if it's already in place
@@ -343,6 +345,12 @@ static void _sched_waveform_change_fdv_mode(){
 	output(ANSI_MAGENTA "Changing FDV mode to %d\n",fdv_mode);
 	_freedvS = freedv_open(fdv_mode);
 
+	if( fdv_mode == FREEDV_MODE_2400A ){
+		freedv_set_alt_modem_samp_rate(_freedvS,24000);
+		//fsk_set_est_limits(_freedvS->fsk,-3000,3000);
+		_freedvS->fsk->f1_tx = -1800;
+	}
+
     freedv_set_callback_txt(_freedvS, my_put_next_rx_char, my_get_next_tx_char, &_my_cb_state);
 }
 
@@ -352,6 +360,7 @@ static void* _sched_waveform_thread(void* param)
 
     int		i;			// for loop counter
     float	fsample;	// a float sample
+    Complex	cssample;
 //    float   Sig2Noise;	// Signal to noise ratio
 
     // Flags ...
@@ -369,11 +378,16 @@ static void* _sched_waveform_thread(void* param)
     float 	float_out_24k[PACKET_SAMPLES * DECIMATION_FACTOR ];
 
     // TX RESAMPLER I/O BUFFERS
-    float 	tx_float_in_8k[PACKET_SAMPLES + FILTER_TAPS];
+    float 	tx_float_in_8k_r[PACKET_SAMPLES + FILTER_TAPS];
+    float 	tx_float_in_8k_i[PACKET_SAMPLES + FILTER_TAPS];
     float 	tx_float_out_8k[PACKET_SAMPLES];
 
     float 	tx_float_in_24k[PACKET_SAMPLES * DECIMATION_FACTOR + FILTER_TAPS];
-    float 	tx_float_out_24k[PACKET_SAMPLES * DECIMATION_FACTOR ];
+    float 	tx_float_out_24k_r[PACKET_SAMPLES * DECIMATION_FACTOR ];
+    float 	tx_float_out_24k_i[PACKET_SAMPLES * DECIMATION_FACTOR ];
+
+    float	tx_float_cleanup_r[PACKET_SAMPLES * DECIMATION_FACTOR + FILTER_TAPS];
+    float	tx_float_cleanup_i[PACKET_SAMPLES * DECIMATION_FACTOR + FILTER_TAPS];
 
     BOOL inhibit_tx = FALSE;
     BOOL flush_tx = FALSE;
@@ -390,19 +404,16 @@ static void* _sched_waveform_thread(void* param)
 
 	TX1_cb = cfbCreate(PACKET_SAMPLES*12 +1);
 	TX2_cb = csbCreate(PACKET_SAMPLES*12 +1);
-	TX3_cb = csbCreate(PACKET_SAMPLES*12 +1);
-	TX4_cb = cfbCreate(PACKET_SAMPLES*12 +1);
+	TX3_cb = ccbCreate(PACKET_SAMPLES*12 +1);
+	TX4_cb = ccbCreate(PACKET_SAMPLES*12 +1);
 
 	initial_tx = TRUE;
 	initial_rx = TRUE;
 
-    fdv_mode = FREEDV_MODE_1600;
+    fdv_mode = FREEDV_MODE_2400A;
     sideband_mode = UPPER_SIDEBAND;
     int fdv_mode_old = fdv_mode;
     _sched_waveform_change_fdv_mode();
-
-    //int rx_sideband_i = 0;	//LSB->USB conversion counter
-    //int tx_sideband_i = 0;  //USB->LSB conversion counter
 
     // Set up callback for txt msg chars
     // clear tx_string
@@ -411,6 +422,16 @@ static void* _sched_waveform_thread(void* param)
 
     uint32 bypass_count = 0;
     BOOL bypass_demod = TRUE;
+
+    // In 2400A, we don't convert RF to/from 8KHz
+    BOOL bypass_8kconv = FALSE;
+
+    // NCO to shift 2400A waveform up in frequency because the modem doesn't like negative frequencies
+    const float fshift_2400a = -3000.0;
+    COMP dphi_nco_2400a = comp_exp_j(fshift_2400a*2.0*M_PI/24000.0);
+    COMP nco_2400a;
+    nco_2400a.real = 1;
+    nco_2400a.imag = 0;
 
 	// show that we are running
 	BufferDescriptor buf_desc;
@@ -427,6 +448,12 @@ static void* _sched_waveform_thread(void* param)
 				if(fdv_mode != fdv_mode_old){
 					_sched_waveform_change_fdv_mode();
 				}
+				fdv_mode_old = fdv_mode;
+				if(fdv_mode == FREEDV_MODE_2400A){
+					bypass_8kconv = TRUE;
+				} else {
+					bypass_8kconv = FALSE;
+				}
 
 				// speech/mod buffers moved into main loop to allow for n_sample changes
 			    size_t freedv_nsamp_audio = freedv_get_n_speech_samples(_freedvS);
@@ -436,7 +463,8 @@ static void* _sched_waveform_thread(void* param)
 			    short	speech_in[freedv_nsamp_audio];
 			    short 	speech_out[freedv_nsamp_audio];
 			    float 	demod_in[freedv_nsamp_rf];
-			    short 	mod_out[freedv_nsamp_rf];
+			    COMP 	mod_out[freedv_nsamp_rf];
+
 
 				buf_desc = _WaveformList_UnlinkHead();
 				// if we got signalled, but there was no new data, something's wrong
@@ -454,6 +482,8 @@ static void* _sched_waveform_thread(void* param)
 					//output(" \"Processed\" buffer stream id = 0x%08X\n", buf_desc->stream_id);
 
 					if( (buf_desc->stream_id & 1) == 0) { //RX BUFFER
+
+
 						//	If 'initial_rx' flag, clear buffers RX1, RX2, RX3, RX4
 						if(initial_rx)
 						{
@@ -491,38 +521,52 @@ static void* _sched_waveform_thread(void* param)
 							//output("Outputting ")
 							//	fsample = Get next float from packet;
 							COMP csample = ((COMP*)buf_desc->buf_ptr)[i];
-
+							// Shift the frequency if we're in 2400A
+							if(fdv_mode == FREEDV_MODE_2400A){
+								nco_2400a = cmult(nco_2400a,dphi_nco_2400a);
+								csample = cmult(csample,nco_2400a);
+							}
 							cbWriteFloat(RX1_cb, csample.real);
 
 						}
-
+						//Normalize the NCO for stability if we're in 2400A mode
+						if(fdv_mode == FREEDV_MODE_2400A){
+							nco_2400a = comp_normalize(nco_2400a);
+						}
 //
 						// Check for >= 384 samples in RX1_cb and spin downsampler
 						//	Convert to shorts and move to RX2_cb.
-						if(cfbContains(RX1_cb) >= 384)
+						while(cfbContains(RX1_cb) >= 384)
 						{
-							for(i=0 ; i<384 ; i++)
-							{
-								float_in_24k[i + MEM_24] = cbReadFloat(RX1_cb);
-							}
+							if(!bypass_8kconv){
+								for(i=0 ; i<384 ; i++)
+								{
+									float_in_24k[i + MEM_24] = cbReadFloat(RX1_cb);
+								}
 
-							fdmdv_24_to_8(float_out_8k, &float_in_24k[MEM_24], 128);
+								fdmdv_24_to_8(float_out_8k, &float_in_24k[MEM_24], 128);
 
-							for(i=0 ; i<128 ; i++)
-							{
-								cbWriteFloat(RX2_cb, float_out_8k[i]);
+								for(i=0 ; i<128 ; i++)
+								{
+									cbWriteFloat(RX2_cb, float_out_8k[i]);
 
+								}
+							}else{
+								for(i=0 ; i<384 ; i++)
+								{
+									cbWriteFloat(RX2_cb,cbReadFloat(RX1_cb));
+								}
 							}
 
 						}
 //
 //						// Check for >= 320 samples in RX2_cb and spin vocoder
 						// 	Move output to RX3_cb.
-//						do {
+						//do {
 							// freedv_nin is really necessary as nin may change between freedv_rx calls
 							// the modem uses nin changes to account for differences in sample clock rates
 							nin = freedv_nin(_freedvS); // TODO Is nin, nout really necessary?
-
+							int n_speech = freedv_get_n_speech_samples(_freedvS);
 
 							if ( cfbContains(RX2_cb) >= nin )
 							{
@@ -551,9 +595,15 @@ static void* _sched_waveform_thread(void* param)
 									//if ( !bypass_demod ) output("baypass_demod transitioning to TRUE \n");
 									bypass_demod = TRUE;
 								}
-								if ( bypass_demod ) {
+
+								if ( bypass_demod && !bypass_8kconv) {
 									for ( i = 0 ; i < nin ; i++ ) {
 										cbWriteShort(RX3_cb, (short)(demod_in[i] * SCALE_RX_OUT));
+									}
+								} else if ( bypass_demod && bypass_8kconv) {
+									/* TEMPORARY */
+									for ( i = 0 ; i < n_speech ; i++ ) {
+										cbWriteShort(RX3_cb, 0);
 									}
 								} else {
 									for( i=0 ; i < nout ; i++)
@@ -573,8 +623,8 @@ static void* _sched_waveform_thread(void* param)
 								//output("%d\n", bypass_count);
 
 							}
-	//						} else {
-		//						break; /* Break out of while loop */
+							//} else {
+							//	break; /* Break out of while loop */
 							//}
 						//} while (1);
 //
@@ -619,7 +669,7 @@ static void* _sched_waveform_thread(void* param)
 
 							}
 						} else {
-							//output("RX Starved buffer out\n");
+							output("RX Starved buffer out\n");
 
 							memset( buf_desc->buf_ptr, 0, PACKET_SAMPLES * sizeof(Complex));
 
@@ -630,6 +680,10 @@ static void* _sched_waveform_thread(void* param)
 						emit_waveform_output(buf_desc);
 
 					} else if ( (buf_desc->stream_id & 1) == 1) { //TX BUFFER
+						//char api_cmd[80];
+						//snprintf(api_cmd, 80, "transmit set raw_iq_enabled=1");
+						//tc_sendSmartSDRcommand(api_cmd,FALSE,NULL);
+
 						//	If 'initial_rx' flag, clear buffers TX1, TX2, TX3, TX4
 						if(initial_tx)
 						{
@@ -646,7 +700,11 @@ static void* _sched_waveform_thread(void* param)
 							/* Clear filter memory */
 
 							memset(tx_float_in_24k, 0, MEM_24 * sizeof(float));
-							memset(tx_float_in_8k, 0, MEM_8 * sizeof(float));
+							memset(tx_float_in_8k_r, 0, MEM_8 * sizeof(float));
+							memset(tx_float_in_8k_i, 0, MEM_8 * sizeof(float));
+
+							memset(tx_float_cleanup_r, 0, MEM_24 * sizeof(float));
+							memset(tx_float_cleanup_i, 0, MEM_24 * sizeof(float));
 
 							/* Requires us to set initial_rx to FALSE which we do at the end of
 							 * the first loop
@@ -690,47 +748,86 @@ static void* _sched_waveform_thread(void* param)
     //						// Check for >= 320 samples in TX2_cb and spin vocoder
                             // 	Move output to TX3_cb.
 
+                            int n_speech = freedv_get_n_speech_samples(_freedvS);
+                            int n_modem_nom = freedv_get_n_nom_modem_samples(_freedvS);
+							if ( csbContains(TX2_cb) >= n_speech )
+							{
+								for( i=0 ; i< n_speech ; i++)
+								{
+									speech_in[i] = cbReadShort(TX2_cb);
+								}
 
-                                if ( csbContains(TX2_cb) >= 320 )
-                                {
-                                    for( i=0 ; i< 320 ; i++)
-                                    {
-                                        speech_in[i] = cbReadShort(TX2_cb);
-                                    }
+								freedv_comptx(_freedvS, mod_out, speech_in);
 
-                                    freedv_tx(_freedvS, mod_out, speech_in);
+								for( i=0 ; i < n_modem_nom ; i++)
+								{
+									cbWriteComp(TX3_cb, ((Complex*)mod_out)[i]);
+								}
 
-                                    for( i=0 ; i < 320 ; i++)
-                                    {
-                                        cbWriteShort(TX3_cb, mod_out[i]);
-                                    }
+								// Do mode status string send
+								mode_status_countdown--;
+								if(mode_status_countdown <= 0){
+									mode_status_countdown = mode_status_time;
+									_sched_waveform_send_mode_status();
+								}
 
-    								// Do mode status string send
-    								mode_status_countdown--;
-    								if(mode_status_countdown <= 0){
-    									mode_status_countdown = mode_status_time;
-    									_sched_waveform_send_mode_status();
-    								}
-
-                                }
+							}
 
                             // Check for >= 128 samples in TX3_cb, convert to floats
                             //	and spin the upsampler. Move output to TX4_cb.
 
-                            if(csbContains(TX3_cb) >= 128)
+
+                            while(ccbContains(TX3_cb) >= (bypass_8kconv?384:128))
                             {
-                                for( i=0 ; i<128 ; i++)
-                                {
-                                    tx_float_in_8k[i+MEM_8] = ((float)  (cbReadShort(TX3_cb) / SCALE_TX_OUT));
-                                }
+                            	if(!bypass_8kconv){
+									for( i=0 ; i<128 ; i++)
+									{
+										cssample = cbReadComp(TX3_cb);
+										tx_float_in_8k_r[i+MEM_8] = cssample.real;
+										tx_float_in_8k_i[i+MEM_8] = cssample.imag;
+									}
 
-                                fdmdv_8_to_24(tx_float_out_24k, &tx_float_in_8k[MEM_8], 128);
+									fdmdv_8_to_24(tx_float_out_24k_r, &tx_float_in_8k_r[MEM_8], 128);
+									fdmdv_8_to_24(tx_float_out_24k_i, &tx_float_in_8k_i[MEM_8], 128);
 
-                                for( i=0 ; i<384 ; i++)
-                                {
-                                    cbWriteFloat(TX4_cb, tx_float_out_24k[i]);
-                                }
-                                //Sig2Noise = (_freedvS->fdmdv_stats.snr_est);
+									for( i=0 ; i<384 ; i++)
+									{
+										if(sideband_mode == UPPER_SIDEBAND){
+											cssample.real = tx_float_out_24k_r[i];
+											cssample.imag = tx_float_out_24k_i[i];
+										}else{
+											cssample.real = tx_float_out_24k_i[i];
+											cssample.imag = tx_float_out_24k_r[i];
+										}
+										cbWriteComp(TX4_cb, cssample);
+									}
+									//Sig2Noise = (_freedvS->fdmdv_stats.snr_est);
+                            	}else{
+                            		for( i=0; i<384; i++)
+                            		{
+										cssample = cbReadComp(TX3_cb);
+                            			tx_float_cleanup_r[i+MEM_24] = cssample.real;
+                            			tx_float_cleanup_i[i+MEM_24] = cssample.imag;
+
+                            			tx_float_out_24k_r[i] = tx_float_cleanup_r[i+MEM_24];
+                            			tx_float_out_24k_i[i] = tx_float_cleanup_i[i+MEM_24];
+                            		}
+                            		fdmdv_5k_cleanup(tx_float_out_24k_r, &tx_float_cleanup_r[MEM_24], 384);
+                            		fdmdv_5k_cleanup(tx_float_out_24k_i, &tx_float_cleanup_i[MEM_24], 384);
+
+									for( i=0 ; i<384 ; i++)
+									{
+										cssample.real = tx_float_out_24k_r[i];
+										cssample.imag = tx_float_out_24k_i[i];
+										//cssample = cbReadComp(TX3_cb);
+										if(sideband_mode == LOWER_SIDEBAND){
+											fsample = cssample.real;
+											cssample.real = cssample.imag;
+											cssample.imag = fsample;
+										}
+										cbWriteComp(TX4_cb, cssample);
+									}
+                            	}
                             }
 					    }
 						// Check for >= 128 samples in RX4_cb. Form packet and
@@ -745,20 +842,15 @@ static void* _sched_waveform_thread(void* param)
 						    flush_tx = TRUE;
 
 						if ( !inhibit_tx ) {
-                            if(cfbContains(TX4_cb) >= tx_check_samples )
+                            if(ccbContains(TX4_cb) >= tx_check_samples )
                             {
                                 for( i = 0 ; i < PACKET_SAMPLES ; i++)
                                 {
-                                    //output("Fetching from end buffer \n");
                                     // Set up the outbound packet
-                                    fsample = cbReadFloat(TX4_cb);
-                                    // put the fsample into the outbound packet
-                                    ((Complex*)buf_desc->buf_ptr)[i].real = fsample;
-                                    ((Complex*)buf_desc->buf_ptr)[i].imag = fsample;
+                                    ((Complex*)buf_desc->buf_ptr)[i] = cbReadComp(TX4_cb);
                                 }
                             } else {
-                                //output("TX Starved buffer out\n");
-
+                                output("TX Starved buffer out\n");
                                 memset( buf_desc->buf_ptr, 0, PACKET_SAMPLES * sizeof(Complex));
 
                                 if(initial_tx)
@@ -766,28 +858,22 @@ static void* _sched_waveform_thread(void* param)
                             }
 
                             emit_waveform_output(buf_desc);
-
                             if ( flush_tx ) {
                                 inhibit_tx = TRUE;
 
-                                while ( cfbContains(TX4_cb) > 0 ) {
+                                while ( ccbContains(TX4_cb) > 0 ) {
 
-                                    if ( cfbContains(TX4_cb) > PACKET_SAMPLES ) {
+                                    if ( ccbContains(TX4_cb) > PACKET_SAMPLES ) {
                                         for( i = 0 ; i < PACKET_SAMPLES ; i++)
                                         {
-                                            // Set up the outbound packet
-                                            fsample = cbReadFloat(TX4_cb);
-
                                             // put the fsample into the outbound packet
-                                            ((Complex*)buf_desc->buf_ptr)[i].real = fsample;
-                                            ((Complex*)buf_desc->buf_ptr)[i].imag = fsample;
+                                            ((Complex*)buf_desc->buf_ptr)[i] = cbReadComp(TX4_cb);
+
                                         }
                                     } else {
                                         int end_index = 0;
-                                        for ( i = 0 ; i <= cfbContains(TX4_cb); i++ ) {
-                                            fsample = cbReadFloat(TX4_cb);
-                                            ((Complex*)buf_desc->buf_ptr)[i].real = fsample;
-                                            ((Complex*)buf_desc->buf_ptr)[i].imag = fsample;
+                                        for ( i = 0 ; i <= ccbContains(TX4_cb); i++ ) {
+                                            ((Complex*)buf_desc->buf_ptr)[i] = cbReadComp(TX4_cb);
                                             end_index = i+1;
                                         }
 
@@ -795,38 +881,30 @@ static void* _sched_waveform_thread(void* param)
                                             ((Complex*)buf_desc->buf_ptr)[i].real = 0.0f;
                                             ((Complex*)buf_desc->buf_ptr)[i].imag = 0.0f;
                                         }
-
                                     }
                                     emit_waveform_output(buf_desc);
-
                                 }
                             }
-
 						}
 					}
-
-
-
 
 					hal_BufferRelease(&buf_desc);
 				}
 
-				fdv_mode_old = fdv_mode;
 			} while(1); // Seems infinite loop but will exit once there are no longer any buffers linked in _Waveformlist
 		}
 	}
 	_waveform_thread_abort = TRUE;
 	freedv_close(_freedvS);
-
 	cfbDestroy(RX1_cb);
-	csbDestroy(RX2_cb);
+	cfbDestroy(RX2_cb);
 	csbDestroy(RX3_cb);
 	cfbDestroy(RX4_cb);
 
 	cfbDestroy(TX1_cb);
 	csbDestroy(TX2_cb);
-	csbDestroy(TX3_cb);
-	cfbDestroy(TX4_cb);
+	ccbDestroy(TX3_cb);
+	ccbDestroy(TX4_cb);
 
 	return NULL;
 }
