@@ -397,20 +397,20 @@ static void* _sched_waveform_thread(void* param)
 
     // Initialize the Circular Buffers
 
-	RX1_cb = cfbCreate(PACKET_SAMPLES*12 +1);
-	RX2_cb = cfbCreate(PACKET_SAMPLES*12 +1);
-	RX3_cb = csbCreate(PACKET_SAMPLES*12 +1);
-	RX4_cb = cfbCreate(PACKET_SAMPLES*12 +1);
+	RX1_cb = cfbCreate(PACKET_SAMPLES*24 +1);
+	RX2_cb = cfbCreate(PACKET_SAMPLES*16 +1);
+	RX3_cb = csbCreate(PACKET_SAMPLES*16 +1);
+	RX4_cb = cfbCreate(PACKET_SAMPLES*24 +1);
 
-	TX1_cb = cfbCreate(PACKET_SAMPLES*12 +1);
+	TX1_cb = cfbCreate(PACKET_SAMPLES*18 +1);
 	TX2_cb = csbCreate(PACKET_SAMPLES*12 +1);
 	TX3_cb = ccbCreate(PACKET_SAMPLES*12 +1);
-	TX4_cb = ccbCreate(PACKET_SAMPLES*12 +1);
+	TX4_cb = ccbCreate(PACKET_SAMPLES*18 +1);
 
 	initial_tx = TRUE;
 	initial_rx = TRUE;
 
-    fdv_mode = FREEDV_MODE_2400A;
+    fdv_mode = FREEDV_MODE_700C;
     sideband_mode = UPPER_SIDEBAND;
     int fdv_mode_old = fdv_mode;
     _sched_waveform_change_fdv_mode();
@@ -440,7 +440,6 @@ static void* _sched_waveform_thread(void* param)
 	{
 		// wait for a buffer descriptor to get posted
 		sem_wait(&sched_waveform_sem);
-
 		if(!_waveform_thread_abort)
 		{
 			do {
@@ -465,8 +464,12 @@ static void* _sched_waveform_thread(void* param)
 			    float 	demod_in[freedv_nsamp_rf];
 			    COMP 	mod_out[freedv_nsamp_rf];
 
+				//while(sem_trywait(&sched_waveform_sem) == 0);
 
 				buf_desc = _WaveformList_UnlinkHead();
+
+				//Zero out semaphore so we don't get stuck in this while loop and accumulate a lrage count
+
 				// if we got signalled, but there was no new data, something's wrong
 				// and we'll just wait for the next packet
 				if (buf_desc == NULL)
@@ -479,7 +482,6 @@ static void* _sched_waveform_thread(void* param)
 					// convert the buffer to little endian
 					_dsp_convertBufEndian(buf_desc);
 
-					//output(" \"Processed\" buffer stream id = 0x%08X\n", buf_desc->stream_id);
 
 					if( (buf_desc->stream_id & 1) == 0) { //RX BUFFER
 
@@ -669,7 +671,6 @@ static void* _sched_waveform_thread(void* param)
 
 							}
 						} else {
-							output("RX Starved buffer out\n");
 
 							memset( buf_desc->buf_ptr, 0, PACKET_SAMPLES * sizeof(Complex));
 
@@ -680,9 +681,6 @@ static void* _sched_waveform_thread(void* param)
 						emit_waveform_output(buf_desc);
 
 					} else if ( (buf_desc->stream_id & 1) == 1) { //TX BUFFER
-						//char api_cmd[80];
-						//snprintf(api_cmd, 80, "transmit set raw_iq_enabled=1");
-						//tc_sendSmartSDRcommand(api_cmd,FALSE,NULL);
 
 						//	If 'initial_rx' flag, clear buffers TX1, TX2, TX3, TX4
 						if(initial_tx)
@@ -758,7 +756,6 @@ static void* _sched_waveform_thread(void* param)
 								}
 
 								freedv_comptx(_freedvS, mod_out, speech_in);
-
 								for( i=0 ; i < n_modem_nom ; i++)
 								{
 									cbWriteComp(TX3_cb, ((Complex*)mod_out)[i]);
@@ -850,7 +847,6 @@ static void* _sched_waveform_thread(void* param)
                                     ((Complex*)buf_desc->buf_ptr)[i] = cbReadComp(TX4_cb);
                                 }
                             } else {
-                                output("TX Starved buffer out\n");
                                 memset( buf_desc->buf_ptr, 0, PACKET_SAMPLES * sizeof(Complex));
 
                                 if(initial_tx)

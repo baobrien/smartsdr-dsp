@@ -51,7 +51,7 @@
 #include <netinet/in.h>		// ntohl()
 
 #include <signal.h>
-#include <execinfo.h>
+//#include <execinfo.h>
 #include <ucontext.h>
 
 #include "smartsdr_dsp_api.h"
@@ -84,6 +84,7 @@ const freedv_mode_info_t FreeDV_modes[4] = {
 };
 
 extern char *strsignal (int __sig);
+/*
 void segfault_sigaction(int signal, siginfo_t *si, void *arg)
 {
     void *             array[50];
@@ -100,7 +101,7 @@ void segfault_sigaction(int signal, siginfo_t *si, void *arg)
 
     messages = backtrace_symbols(array, size);
 
-    /* skip first stack frame (points here) */
+    // skip first stack frame (points here)
     for (i = 2; i < size && messages != NULL; ++i)
     {
     	printf("%d-",i);
@@ -130,6 +131,7 @@ void setup_segfault_handler(void)
     // ignore broken pipes
     signal(SIGPIPE, SIG_IGN);
 }
+*/
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // 	main()
@@ -142,10 +144,11 @@ int main( int argc, char * argv[])
 	BOOL enable_console = FALSE;
 	char * restrict_ip = NULL;
 
+
 	/* Semaphore will be used to signal end of execution */
 	sem_init(&shutdown_sem, 0, 0);
 	/* If compiled in DEBUG then seg-faults will include a stack trace */
-	setup_segfault_handler();
+	//setup_segfault_handler();
 
 	int i = 0;
 	for ( i = 1 ; i < argc; i++ ) {

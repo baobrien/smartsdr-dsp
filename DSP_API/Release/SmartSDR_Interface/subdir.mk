@@ -53,7 +53,7 @@ C_DEPS += \
 SmartSDR_Interface/%.o: ../SmartSDR_Interface/%.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: GCC C Compiler'
-	arm-linux-gnueabihf-gcc -static -I"/home/baobrien/smartsdr-dsp/DSP_API" -I"/home/baobrien/smartsdr-dsp/DSP_API/SmartSDR_Interface" -I"/home/baobrien/smartsdr-dsp/DSP_API/CODEC2_FREEDV" -O3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o "$@" "$<"
+	arm-linux-gnueabi-gcc -static -I"/home/baobrien/workspace/smartsdr-dsp/DSP_API" -I"/home/baobrien/workspace/smartsdr-dsp/DSP_API/SmartSDR_Interface" -I"/home/baobrien/workspace/smartsdr-dsp/DSP_API/CODEC2_FREEDV" -O3 -mcpu=cortex-a8 -mfpu=neon -mfloat-abi=softfp -ftree-vectorize -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

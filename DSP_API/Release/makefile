@@ -30,7 +30,7 @@ all: freedv
 freedv: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	arm-linux-gnueabihf-gcc -static  -o "freedv" $(OBJS) $(USER_OBJS) $(LIBS)
+	arm-linux-gnueabi-gcc -static  -o "freedv" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	$(MAKE) --no-print-directory post-build
@@ -45,7 +45,6 @@ post-build:
 	-#scp freedv root@192.168.20.33:/home/debian/bin/
 	-@echo ' '
 
-.PHONY: all clean dependents
-.SECONDARY: post-build
+.PHONY: all clean dependents post-build
 
 -include ../makefile.targets
