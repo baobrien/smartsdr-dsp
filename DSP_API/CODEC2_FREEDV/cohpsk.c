@@ -121,6 +121,7 @@ struct COHPSK *cohpsk_create(void)
     coh->frame = 0;
     coh->ratio = 0.0;
     coh->nin = COHPSK_M;
+    coh->f_est = FDMDV_FCENTRE;
 
     /* clear sync window buffer */
 
@@ -565,6 +566,8 @@ void frame_sync_fine_freq_est(struct COHPSK *coh, COMP ch_symb[][COHPSK_NC*ND], 
     int   t;
     float f_fine, mag, max_corr, max_mag, corr;
 
+    float f_fine_range = 20;
+    float f_fine_delta = .25;
     update_ct_symb_buf(coh->ct_symb_buf, ch_symb);
 
     /* sample pilots at start of this frame and start of next frame */
@@ -573,8 +576,12 @@ void frame_sync_fine_freq_est(struct COHPSK *coh, COMP ch_symb[][COHPSK_NC*ND], 
 
         /* sample correlation over 2D grid of time and fine freq points */
 
+    	if(coh->rough_fine_f_est){
+    		f_fine_delta = 4;
+    		f_fine_range = 10;
+    	}
         max_corr = max_mag = 0;
-        for (f_fine=-20; f_fine<=20; f_fine+=0.25) {
+        for (f_fine=-f_fine_range; f_fine<=f_fine_range; f_fine+=f_fine_delta) {
             for (t=0; t<NSYMROWPILOT; t++) {
                 corr_with_pilots(&corr, &mag, coh, t, f_fine);
                 //printf("  f: %f  t: %d corr: %f mag: %f\n", f_fine, t, corr, mag);
@@ -586,6 +593,20 @@ void frame_sync_fine_freq_est(struct COHPSK *coh, COMP ch_symb[][COHPSK_NC*ND], 
                 }
             }
         }
+        f_fine = 0;
+
+//        for (f_fine_b=-2; f_fine_b<=2; f_fine_b+=1){
+//            for (t=0; t<NSYMROWPILOT; t++) {
+//                corr_with_pilots(&corr, &mag, coh, t, f_fine + f_fine_b);
+//                //printf("  f: %f  t: %d corr: %f mag: %f\n", f_fine, t, corr, mag);
+//                if (corr >= max_corr) {
+//                    max_corr = corr;
+//                    max_mag = mag;
+//                    coh->ct = t;
+//                    coh->f_fine_est = f_fine = f_fine_b;
+//                }
+//            }
+//        }
 
 
         coh->ff_rect.real = cosf(coh->f_fine_est*2.0*M_PI/COHPSK_RS);
@@ -982,20 +1003,29 @@ void cohpsk_demod(struct COHPSK *coh, float rx_bits[], int *sync_good, COMP rx_f
     //printf("i: %d j: %d rx_fdm[0]: %f %f\n", i,j, rx_fdm[0].real, rx_fdm[0].imag);
 
     /* if out of sync do Initial Freq offset estimation using NSW frames to flush out filter memories */
-
+    coh->rough_fine_f_est = 0;
     if (sync == 0) {
 
         /* we can test +/- 20Hz, so we break this up into 3 tests to cover +/- 60Hz */
 
         max_ratio = 0.0;
         f_est = 0.0;
-        for (coh->f_est = FDMDV_FCENTRE-40.0; coh->f_est <= FDMDV_FCENTRE+40.0; coh->f_est += 40.0) {
 
+        coh->f_est += 20;
+        if(coh->f_est > FDMDV_FCENTRE + 40.0){
+        	coh->f_est = FDMDV_FCENTRE - 40;
+        	fprintf(stderr,"+");
+        }
+        else fprintf(stderr," ");
+        fprintf(stderr,"coh_f:%f\n",coh->f_est);
+        //for (coh->f_est = FDMDV_FCENTRE-40.0; coh->f_est <= FDMDV_FCENTRE+40.0; coh->f_est += 20.0)
+        {
             if (coh->verbose)
                 fprintf(stderr, "  [%d] acohpsk.f_est: %f +/- 20\n", coh->frame, coh->f_est);
 
             /* we are out of sync so reset f_est and process two frames to clean out memories */
 
+            coh->rough_fine_f_est = 1;
             rate_Fs_rx_processing(coh, ch_symb, coh->ch_fdm_frame_buf, &coh->f_est, NSW*NSYMROWPILOT, COHPSK_M, 0);
             for (i=0; i<NSW-1; i++) {
                 update_ct_symb_buf(coh->ct_symb_buf, &ch_symb[i*NSYMROWPILOT]);
@@ -1004,6 +1034,7 @@ void cohpsk_demod(struct COHPSK *coh, float rx_bits[], int *sync_good, COMP rx_f
 
             if (anext_sync == 1) {
                 //printf("  [%d] acohpsk.ratio: %f\n", f, coh->ratio);
+            	fprintf(stderr,">NS\n");
                 if (coh->ratio > max_ratio) {
                     max_ratio   = coh->ratio;
                     f_est       = coh->f_est - coh->f_fine_est;

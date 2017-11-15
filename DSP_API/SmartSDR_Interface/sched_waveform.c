@@ -467,7 +467,6 @@ static void* _sched_waveform_thread(void* param)
 				//while(sem_trywait(&sched_waveform_sem) == 0);
 
 				buf_desc = _WaveformList_UnlinkHead();
-
 				//Zero out semaphore so we don't get stuck in this while loop and accumulate a lrage count
 
 				// if we got signalled, but there was no new data, something's wrong
@@ -679,6 +678,21 @@ static void* _sched_waveform_thread(void* param)
 						}
 
 						emit_waveform_output(buf_desc);
+
+						int sval;
+						//sem_getvalue(&sched_waveform_sem,&sval);
+//						if(sval>0 && bypass_demod == TRUE){
+//							//while(sem_trywait(&sched_waveform_sem) == 0);
+//							buf_desc = _WaveformList_UnlinkHead();
+//							while(buf_desc != NULL){
+//								_dsp_convertBufEndian(buf_desc);
+//								emit_waveform_output(buf_desc);
+//								buf_desc = _WaveformList_UnlinkHead();
+//								initial_rx = TRUE;
+//							}
+//							break;
+//						}
+
 
 					} else if ( (buf_desc->stream_id & 1) == 1) { //TX BUFFER
 

@@ -106,6 +106,10 @@ struct COHPSK {
     /* tx amplitude weights for each carrier for test/instrumentation */
 
     float          carrier_ampl[COHPSK_NC*ND];
+
+    /* Alternate frequency estimate for no-sync situations */
+    int			   rough_fine_f_est;
+    float          no_sync_f_est;
 };
 
 void bits_to_qpsk_symbols(COMP tx_symb[][COHPSK_NC*COHPSK_ND], int tx_bits[], int nbits);

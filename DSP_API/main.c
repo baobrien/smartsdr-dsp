@@ -78,7 +78,7 @@ const int FreeDV_modes_count = 3;
 
 const freedv_mode_info_t FreeDV_modes[4] = {
 		{"1600",  FREEDV_MODE_1600,  1,  600,2400},
-		{"700C",  FREEDV_MODE_700C,  1,  600,2400},
+		{"700C",  FREEDV_MODE_700C,  1,  700,2250},
 		{"2400A", FREEDV_MODE_2400A, 0,  -3000,3000},
 		{"", -1, 0, 0, 0}
 };
