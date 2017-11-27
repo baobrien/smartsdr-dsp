@@ -144,7 +144,6 @@ int main( int argc, char * argv[])
 	BOOL enable_console = FALSE;
 	char * restrict_ip = NULL;
 
-
 	/* Semaphore will be used to signal end of execution */
 	sem_init(&shutdown_sem, 0, 0);
 	/* If compiled in DEBUG then seg-faults will include a stack trace */
@@ -198,7 +197,7 @@ int main( int argc, char * argv[])
 
     safe_free(cfg_path);
 
-    return 0;
+    exit(0);
 }
 
 

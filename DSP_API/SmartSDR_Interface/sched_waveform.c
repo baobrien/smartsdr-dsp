@@ -433,6 +433,8 @@ static void* _sched_waveform_thread(void* param)
     nco_2400a.real = 1;
     nco_2400a.imag = 0;
 
+    int running = -1;
+
 	// show that we are running
 	BufferDescriptor buf_desc;
 
@@ -577,8 +579,23 @@ static void* _sched_waveform_thread(void* param)
 									demod_in[i] = cbReadFloat(RX2_cb);
 								}
 
+
+								if(running==0)
+									exit(0);
+								running--;
+
+								struct timeval tv;
+								uint64_t demod_time_st;
+								uint64_t demod_time_en;
+								gettimeofday(&tv,NULL);
+								demod_time_st = 1000000 * tv.tv_sec + tv.tv_usec;
+
 								nout = freedv_floatrx(_freedvS, speech_out, demod_in);
 
+								gettimeofday(&tv,NULL);
+								demod_time_en = 1000000 * tv.tv_sec + tv.tv_usec;
+
+								fprintf(stderr,"demod time:%lld\n",demod_time_en-demod_time_st);
 
 								if ( freedv_get_sync(_freedvS) ) {
 									/* Increase count for turning bypass off */
@@ -618,6 +635,11 @@ static void* _sched_waveform_thread(void* param)
 								if(mode_status_countdown <= 0){
 									mode_status_countdown = mode_status_time;
 									_sched_waveform_send_mode_status();
+
+									char api_cmd[80];
+
+									snprintf(api_cmd, 80, "waveform status slice=0 dmtime=%lld",demod_time_en-demod_time_st);
+									tc_sendSmartSDRcommand(api_cmd,FALSE,NULL);
 								}
 
 
@@ -680,18 +702,21 @@ static void* _sched_waveform_thread(void* param)
 						emit_waveform_output(buf_desc);
 
 						int sval;
-						//sem_getvalue(&sched_waveform_sem,&sval);
-//						if(sval>0 && bypass_demod == TRUE){
-//							//while(sem_trywait(&sched_waveform_sem) == 0);
-//							buf_desc = _WaveformList_UnlinkHead();
-//							while(buf_desc != NULL){
-//								_dsp_convertBufEndian(buf_desc);
-//								emit_waveform_output(buf_desc);
-//								buf_desc = _WaveformList_UnlinkHead();
-//								initial_rx = TRUE;
-//							}
-//							break;
-//						}
+
+						//Clear out buffers if we're more than 10 frames behind
+						sem_getvalue(&sched_waveform_sem,&sval);
+						if(sval>10 && bypass_demod == TRUE){
+							//while(sem_trywait(&sched_waveform_sem) == 0);
+							buf_desc = _WaveformList_UnlinkHead();
+							while(buf_desc != NULL){
+								//_dsp_convertBufEndian(buf_desc);
+								//emit_waveform_output(buf_desc);
+								buf_desc = _WaveformList_UnlinkHead();
+								//initial_rx = TRUE;
+							}
+							while(sem_trywait(&sched_waveform_sem)==0);
+							break;
+						}
 
 
 					} else if ( (buf_desc->stream_id & 1) == 1) { //TX BUFFER
