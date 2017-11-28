@@ -345,9 +345,9 @@ static void _sched_waveform_change_fdv_mode(){
 	output(ANSI_MAGENTA "Changing FDV mode to %d\n",fdv_mode);
 	_freedvS = freedv_open(fdv_mode);
 
+	// Set up modem to operate directly at 24Khz instead of it's native 48Khz
 	if( fdv_mode == FREEDV_MODE_2400A ){
 		freedv_set_alt_modem_samp_rate(_freedvS,24000);
-		//fsk_set_est_limits(_freedvS->fsk,-3000,3000);
 		_freedvS->fsk->f1_tx = -1800;
 	}
 
@@ -432,8 +432,6 @@ static void* _sched_waveform_thread(void* param)
     COMP nco_2400a;
     nco_2400a.real = 1;
     nco_2400a.imag = 0;
-
-    int running = -1;
 
 	// show that we are running
 	BufferDescriptor buf_desc;
@@ -579,23 +577,7 @@ static void* _sched_waveform_thread(void* param)
 									demod_in[i] = cbReadFloat(RX2_cb);
 								}
 
-
-								if(running==0)
-									exit(0);
-								running--;
-
-								struct timeval tv;
-								uint64_t demod_time_st;
-								uint64_t demod_time_en;
-								gettimeofday(&tv,NULL);
-								demod_time_st = 1000000 * tv.tv_sec + tv.tv_usec;
-
 								nout = freedv_floatrx(_freedvS, speech_out, demod_in);
-
-								gettimeofday(&tv,NULL);
-								demod_time_en = 1000000 * tv.tv_sec + tv.tv_usec;
-
-								fprintf(stderr,"demod time:%lld\n",demod_time_en-demod_time_st);
 
 								if ( freedv_get_sync(_freedvS) ) {
 									/* Increase count for turning bypass off */
@@ -635,11 +617,6 @@ static void* _sched_waveform_thread(void* param)
 								if(mode_status_countdown <= 0){
 									mode_status_countdown = mode_status_time;
 									_sched_waveform_send_mode_status();
-
-									char api_cmd[80];
-
-									snprintf(api_cmd, 80, "waveform status slice=0 dmtime=%lld",demod_time_en-demod_time_st);
-									tc_sendSmartSDRcommand(api_cmd,FALSE,NULL);
 								}
 
 
@@ -682,7 +659,6 @@ static void* _sched_waveform_thread(void* param)
 						{
 							for( i=0 ; i<128 ; i++)
 							{
-								//output("Fetching from end buffer \n");
 								// Set up the outbound packet
 								fsample = cbReadFloat(RX4_cb);
 								// put the fsample into the outbound packet
@@ -706,13 +682,10 @@ static void* _sched_waveform_thread(void* param)
 						//Clear out buffers if we're more than 10 frames behind
 						sem_getvalue(&sched_waveform_sem,&sval);
 						if(sval>10 && bypass_demod == TRUE){
-							//while(sem_trywait(&sched_waveform_sem) == 0);
 							buf_desc = _WaveformList_UnlinkHead();
 							while(buf_desc != NULL){
-								//_dsp_convertBufEndian(buf_desc);
-								//emit_waveform_output(buf_desc);
+
 								buf_desc = _WaveformList_UnlinkHead();
-								//initial_rx = TRUE;
 							}
 							while(sem_trywait(&sched_waveform_sem)==0);
 							break;
