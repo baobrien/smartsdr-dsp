@@ -402,10 +402,10 @@ static void* _sched_waveform_thread(void* param)
 	RX3_cb = csbCreate(PACKET_SAMPLES*16 +1);
 	RX4_cb = cfbCreate(PACKET_SAMPLES*24 +1);
 
-	TX1_cb = cfbCreate(PACKET_SAMPLES*18 +1);
-	TX2_cb = csbCreate(PACKET_SAMPLES*12 +1);
-	TX3_cb = ccbCreate(PACKET_SAMPLES*12 +1);
-	TX4_cb = ccbCreate(PACKET_SAMPLES*18 +1);
+	TX1_cb = cfbCreate(PACKET_SAMPLES*20 +1);
+	TX2_cb = csbCreate(PACKET_SAMPLES*18 +1);
+	TX3_cb = ccbCreate(PACKET_SAMPLES*18 +1);
+	TX4_cb = ccbCreate(PACKET_SAMPLES*20 +1);
 
 	initial_tx = TRUE;
 	initial_rx = TRUE;
@@ -817,22 +817,18 @@ static void* _sched_waveform_thread(void* param)
 										cssample = cbReadComp(TX3_cb);
                             			tx_float_cleanup_r[i+MEM_24] = cssample.real;
                             			tx_float_cleanup_i[i+MEM_24] = cssample.imag;
-
-                            			tx_float_out_24k_r[i] = tx_float_cleanup_r[i+MEM_24];
-                            			tx_float_out_24k_i[i] = tx_float_cleanup_i[i+MEM_24];
                             		}
                             		fdmdv_5k_cleanup(tx_float_out_24k_r, &tx_float_cleanup_r[MEM_24], 384);
                             		fdmdv_5k_cleanup(tx_float_out_24k_i, &tx_float_cleanup_i[MEM_24], 384);
 
 									for( i=0 ; i<384 ; i++)
 									{
-										cssample.real = tx_float_out_24k_r[i];
-										cssample.imag = tx_float_out_24k_i[i];
-										//cssample = cbReadComp(TX3_cb);
-										if(sideband_mode == LOWER_SIDEBAND){
-											fsample = cssample.real;
-											cssample.real = cssample.imag;
-											cssample.imag = fsample;
+										if(sideband_mode == UPPER_SIDEBAND){
+											cssample.real = tx_float_out_24k_r[i];
+											cssample.imag = tx_float_out_24k_i[i];
+										}else{
+											cssample.real = tx_float_out_24k_i[i];
+											cssample.imag = tx_float_out_24k_r[i];
 										}
 										cbWriteComp(TX4_cb, cssample);
 									}

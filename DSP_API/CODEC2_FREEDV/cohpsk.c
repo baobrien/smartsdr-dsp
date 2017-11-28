@@ -422,7 +422,7 @@ void qpsk_symbols_to_bits(struct COHPSK *coh, float rx_bits[], COMP ct_symb_buf[
 
 \*---------------------------------------------------------------------------*/
 
-void tx_filter_and_upconvert_coh(COMP tx_fdm[], int Nc, COMP tx_symbols[],
+void tx_filter_and_upconvert_coh(COMP tx_fdm[], int Nc,const COMP tx_symbols[],
                                  COMP tx_filter_memory[COHPSK_NC*ND][COHPSK_NSYM],
                                  COMP phase_tx[], COMP freq[],
                                  COMP *fbb_phase, COMP fbb_rect)
@@ -439,12 +439,12 @@ void tx_filter_and_upconvert_coh(COMP tx_fdm[], int Nc, COMP tx_symbols[],
     gain.imag = 0.0;
 
     for(i=0; i<COHPSK_M; i++) {
-	tx_fdm[i].real = 0.0;
-	tx_fdm[i].imag = 0.0;
+		tx_fdm[i].real = 0.0;
+		tx_fdm[i].imag = 0.0;
     }
 
     for(c=0; c<Nc; c++)
-	tx_filter_memory[c][COHPSK_NSYM-1] = cmult(tx_symbols[c], gain);
+    	tx_filter_memory[c][COHPSK_NSYM-1] = cmult(tx_symbols[c], gain);
 
     /*
        tx filter each symbol, generate M filtered output samples for
@@ -454,37 +454,30 @@ void tx_filter_and_upconvert_coh(COMP tx_fdm[], int Nc, COMP tx_symbols[],
     */
 
     for(c=0; c<Nc; c++) {
-        for(i=0; i<COHPSK_M; i++) {
 
-	    /* filter real sample of symbol for carrier c */
+		for(i=0; i<COHPSK_M; i++) {
 
-	    acc = 0.0;
-	    for(j=0,k=COHPSK_M-i-1; j<COHPSK_NSYM; j++,k+=COHPSK_M)
-		acc += COHPSK_M * tx_filter_memory[c][j].real * gt_alpha5_root_coh[k];
-	    tx_baseband.real = acc;
+			const COMP * tx_filter_memory_cn = &tx_filter_memory[c];
+			/* filter sample of symbol for carrier c */
+			tx_baseband.real = 0;
+			tx_baseband.imag = 0;
+			for(j=0,k=COHPSK_M-i-1; j<COHPSK_NSYM; j++,k+=COHPSK_M){
+				tx_baseband = cadd(tx_baseband,fcmult(COHPSK_M,fcmult(gt_alpha5_root_coh[k],tx_filter_memory_cn[j])));
+			}
 
-	    /* filter imag sample of symbol for carrier c */
+				/* freq shift and sum */
 
-	    acc = 0.0;
-	    for(j=0,k=COHPSK_M-i-1; j<COHPSK_NSYM; j++,k+=COHPSK_M)
-		acc += COHPSK_M * tx_filter_memory[c][j].imag * gt_alpha5_root_coh[k];
-	    tx_baseband.imag = acc;
-            //printf("%d %d %f %f\n", c, i, tx_baseband.real, tx_baseband.imag);
-
-            /* freq shift and sum */
-
-	    phase_tx[c] = cmult(phase_tx[c], freq[c]);
-	    tx_fdm[i] = cadd(tx_fdm[i], cmult(tx_baseband, phase_tx[c]));
-            //printf("%d %d %f %f\n", c, i, phase_tx[c].real, phase_tx[c].imag);
-	}
+			phase_tx[c] = cmult(phase_tx[c], freq[c]);
+			tx_fdm[i] = cadd(tx_fdm[i], cmult(tx_baseband, phase_tx[c]));
+		}
         //exit(0);
     }
 
     /* shift whole thing up to carrier freq */
 
-    for (i=0; i<COHPSK_M; i++) {
-	*fbb_phase = cmult(*fbb_phase, fbb_rect);
-	tx_fdm[i] = cmult(tx_fdm[i], *fbb_phase);
+	for (i=0; i<COHPSK_M; i++) {
+		*fbb_phase = cmult(*fbb_phase, fbb_rect);
+		tx_fdm[i] = cmult(tx_fdm[i], *fbb_phase);
     }
 
     /*
