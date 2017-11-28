@@ -33,4 +33,5 @@
 
 # Eclipse-generated build/project directories
 DSP_API/Debug_Host
-
+DSP_API/Release-musl
+DSP_API/Release

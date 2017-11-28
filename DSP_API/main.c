@@ -51,7 +51,6 @@
 #include <netinet/in.h>		// ntohl()
 
 #include <signal.h>
-//#include <execinfo.h>
 #include <ucontext.h>
 
 #include "smartsdr_dsp_api.h"
@@ -83,8 +82,14 @@ const freedv_mode_info_t FreeDV_modes[4] = {
 		{"", -1, 0, 0, 0}
 };
 
+
+/* MUSL LIBC doesn't support backtrace */
+#ifdef __GLIBC__
+
+#include <execinfo.h>
+
 extern char *strsignal (int __sig);
-/*
+
 void segfault_sigaction(int signal, siginfo_t *si, void *arg)
 {
     void *             array[50];
@@ -131,7 +136,8 @@ void setup_segfault_handler(void)
     // ignore broken pipes
     signal(SIGPIPE, SIG_IGN);
 }
-*/
+
+#endif
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // 	main()
