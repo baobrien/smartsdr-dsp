@@ -289,9 +289,9 @@ namespace CODEC2_GUI
 
         void slc_WaveformStatusReceived(Slice slc, string status)
         {
+                Debug.WriteLine(status);
             if(status.StartsWith("string"))
             {
-                Debug.WriteLine(status);
                 //string x = "ASDLKFJASLDKJ";
 
                 int start_pos = status.IndexOf("\"");
@@ -326,6 +326,57 @@ namespace CODEC2_GUI
                     txtbox.Text = value;
                 }
             }
+			if (status.StartsWith("fdvmode"))
+			{
+
+				int start_pos = status.IndexOf("\"");
+                // did we find beginning quotes?
+                if(start_pos< 0) return; // no -- return
+
+                int end_pos = status.LastIndexOf("\"");
+                // did we find ending quotes?
+                if(end_pos == start_pos) return; // no -- return
+                
+                start_pos += 1; // ignore beginning quotes
+                string value = status.Substring(start_pos,end_pos - start_pos);
+
+				int sbIdx = 0;
+				int modeIdx = 0;
+				if (value.StartsWith("U")) sbIdx = 0;
+				if (value.StartsWith("L")) sbIdx = 1;
+
+				if (value.EndsWith("1600")) modeIdx = 0;
+				if (value.EndsWith("700C")) modeIdx = 1;
+				if (value.EndsWith("2400A")) modeIdx = 2;
+
+				var sbSelect   = FindControlByName(this, "sbSel" + slc.Index) as ComboBox;
+				var modeSelect = FindControlByName(this, "mdSel" + slc.Index) as ComboBox;
+
+				if (sbSelect == null || modeSelect == null) return;
+
+				if (InvokeRequired)
+                {
+                    Invoke(new MethodInvoker(delegate
+                    {
+						if (!sbSelect.Focused)
+							if (sbSelect.SelectedIndex != sbIdx)
+							sbSelect.SelectedIndex = sbIdx;
+						if(!modeSelect.Focused)
+							if(modeSelect.SelectedIndex != modeIdx)
+								modeSelect.SelectedIndex = modeIdx;
+                    }));
+                }
+                else
+                {
+					if (!sbSelect.Focused)
+						if (sbSelect.SelectedIndex != sbIdx)
+							sbSelect.SelectedIndex = sbIdx;
+					if(!modeSelect.Focused)
+						if(modeSelect.SelectedIndex != modeIdx)
+							modeSelect.SelectedIndex = modeIdx;
+                }
+
+			}
         }
 
         //*************************************
@@ -345,16 +396,20 @@ namespace CODEC2_GUI
                 TextBox txtOut = new TextBox();
                 VerticalProgressBar bar = new VerticalProgressBar();
                 GroupBox groupbox = new GroupBox();
+				ComboBox modeSelect = new ComboBox();
+				ComboBox sbSelect = new ComboBox();
                 groupbox.SuspendLayout();
                 //
                 // groupBox
                 //
                 groupbox.Controls.Add(txtIn);
                 groupbox.Controls.Add(txtOut);
+				groupbox.Controls.Add(modeSelect);
+				groupbox.Controls.Add(sbSelect);
                 groupbox.Controls.Add(bar);
                 groupbox.Location = new Point(10, 10 + index * 110);
                 groupbox.Name = "grpSlice" + index;
-                groupbox.Size = new Size(260, 100);
+                groupbox.Size = new Size(260, 160);
                 groupbox.Text = "Slice " + SliceIndexToLetter(slc.Index);
                 //
                 // txtIn
@@ -370,12 +425,34 @@ namespace CODEC2_GUI
                 txtOut.Name = "txtOut" + slc.Index;
                 txtOut.Size = new Size(200, 20);
                 txtOut.PreviewKeyDown += new PreviewKeyDownEventHandler(txtOut_PreviewKeyDown);
+
+				//
+				// modeSelect
+				//
+				modeSelect.Location = new Point(40, 90);
+				modeSelect.Name = "mdSel" + slc.Index;
+				modeSelect.Size = new Size(200, 20);
+				modeSelect.Items.Add("1600");
+				modeSelect.Items.Add("700C");
+				modeSelect.Items.Add("2400A");
+				modeSelect.SelectedIndex = 0;
+				modeSelect.SelectedIndexChanged += modeSelect_updateMode;
+				//
+				// sbSelect
+				//
+				sbSelect.Location = new Point(40, 120);
+				sbSelect.Name = "sbSel" + slc.Index;
+				sbSelect.Size = new Size(200, 20);
+				sbSelect.Items.Add("USB");
+				sbSelect.Items.Add("LSB");
+				sbSelect.SelectedIndex = 0;
+				sbSelect.SelectedIndexChanged += modeSelect_updateMode;
                 //
                 // bar
                 //
                 bar.Location = new Point(10, 20);
                 bar.Name = "bar" + slc.Index;
-                bar.Size = new Size(20, 70);
+                bar.Size = new Size(20, 130);
                 bar.Value = 25;
                 //
                 // Form1
@@ -388,6 +465,52 @@ namespace CODEC2_GUI
                 this.PerformLayout();
             }
         }
+
+		void modeSelect_updateMode(object sender, EventArgs e)
+		{
+			
+			ComboBox cb = sender as ComboBox;
+			if (cb == null) return;
+
+			// get the index of the control
+			int index;
+			bool b = int.TryParse(cb.Name.Substring(5), out index);
+			if (!b) return;
+
+			// first we need to find the slice that goes with this control
+			foreach (Slice slc in _fdvSlices)
+			{
+				if (slc.Index == index)
+				{
+					Control mode_c = FindControlByName(this, "mdSel" + slc.Index);
+					Control sideband_c = FindControlByName(this, "sbSel" + slc.Index);
+
+					ComboBox modeSelect = mode_c as ComboBox;
+					ComboBox sbSelect = sideband_c as ComboBox;
+
+					if (modeSelect == null || sbSelect == null) return;
+
+					int   modeId = modeSelect.SelectedIndex;
+					int 	sbId = sbSelect.SelectedIndex;
+					string 	sbStr = "U";
+					if (sbId == 1) sbStr = "L";
+					string modeStr = "";
+					switch (modeId)
+					{
+						case 0: modeStr = "1600";break;
+						case 1: modeStr = "700C";break;
+						case 2:modeStr = "2400A";break;
+						default:modeStr = "1600";break;
+					}
+
+					string fModeStr = sbStr + modeStr;
+					// now that we have found the slice, we need to send a waveform command to set the string
+					slc.SendWaveformCommand("mode=" + fModeStr);
+					return;
+				}
+			}  
+		}
+
 
         void txtOut_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
         {
@@ -448,6 +571,7 @@ namespace CODEC2_GUI
                                 TextBox txt = c2 as TextBox;
                                 txt.PreviewKeyDown -= txtOut_PreviewKeyDown;
                             }
+
                         }
                         groupbox.Controls.Clear();
                     }
