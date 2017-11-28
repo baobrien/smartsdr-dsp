@@ -10,7 +10,6 @@ RM := rm -rf
 -include sources.mk
 -include SmartSDR_Interface/subdir.mk
 -include CODEC2_FREEDV/subdir.mk
--include ASM_ARM/subdir.mk
 -include subdir.mk
 -include objects.mk
 

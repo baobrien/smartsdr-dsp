@@ -57,7 +57,6 @@ static COMP qpsk_mod[] = {
 
 static int sampling_points[] = {0, 1, 6, 7};
 
-void corr_with_pilots(float *corr_out, float *mag_out, struct COHPSK *coh, int t, float f_fine);
 void corr_with_pilots_comp(float *corr_out, float *mag_out, struct COHPSK *coh, int t, COMP f_fine);
 void update_ct_symb_buf(COMP ct_symb_buf[][COHPSK_NC*ND], COMP ch_symb[][COHPSK_NC*ND]);
 
@@ -522,33 +521,6 @@ void tx_filter_and_upconvert_coh(COMP tx_fdm[], int Nc, COMP tx_symbols[],
     }
 }
 
-
-
-void corr_with_pilots(float *corr_out, float *mag_out, struct COHPSK *coh, int t, float f_fine)
-{
-    COMP  acorr, f_fine_rect, f_corr;
-    float mag, corr;
-    int   c, p, pc;
-
-    corr = 0.0; mag = 0.0;
-    for (c=0; c<COHPSK_NC*ND; c++) {
-        acorr.real = 0.0; acorr.imag = 0.0;
-        for (p=0; p<NPILOTSFRAME+2; p++) {
-            f_fine_rect.real = cosf(f_fine*2.0*M_PI*(sampling_points[p]+1.0)/COHPSK_RS);
-            f_fine_rect.imag = sinf(f_fine*2.0*M_PI*(sampling_points[p]+1.0)/COHPSK_RS);
-            f_corr = cmult(f_fine_rect, coh->ct_symb_buf[t+sampling_points[p]][c]);
-            pc = c % COHPSK_NC;
-            acorr = cadd(acorr, fcmult(coh->pilot2[p][pc], f_corr));
-            mag  += cabsolute(f_corr);
-        }
-        corr += cabsolute(acorr);
-    }
-
-    *corr_out = corr;
-    *mag_out  = mag;
-}
-
-
 void corr_with_pilots_comp(float *corr_out, float *mag_out, struct COHPSK *coh, int t, COMP dp_f_fine)
 {
     COMP  acorr, f_fine_rect, f_corr;
@@ -611,11 +583,17 @@ void corr_with_pilots_comp(float *corr_out, float *mag_out, struct COHPSK *coh, 
 void frame_sync_fine_freq_est(struct COHPSK *coh, COMP ch_symb[][COHPSK_NC*ND], int sync, int *next_sync)
 {
     int   t;
-    float f_fine, delta_f_fine, mag, max_corr, max_mag, corr;
-    COMP f_fine_d_ph,f_fine_d2_ph;
+    float f_fine, mag, max_corr, max_mag, corr, delta_f_fine, f_fine_range ;
+    COMP f_fine_d_ph;
 
-    delta_f_fine = 1.0f;
-    f_fine = -10.0f;
+    delta_f_fine = 1.3f;
+    f_fine_range = 10.0f;
+
+	/* Represent f_fine scan as delta2-phase */
+	const COMP f_fine_d2_ph = comp_exp_j(2*M_PI*delta_f_fine/COHPSK_RS);
+
+    f_fine = -f_fine_range;
+
     update_ct_symb_buf(coh->ct_symb_buf, ch_symb);
     /* sample pilots at start of this frame and start of next frame */
 
@@ -624,13 +602,10 @@ void frame_sync_fine_freq_est(struct COHPSK *coh, COMP ch_symb[][COHPSK_NC*ND], 
     	/* Represent f_fine as complex delta-phase instead of frequency */
     	f_fine_d_ph = comp_exp_j(2*M_PI*f_fine/COHPSK_RS);
 
-    	/* Represent f_fine scan as delta2-phase */
-    	f_fine_d2_ph = comp_exp_j(2*M_PI*delta_f_fine/COHPSK_RS);
 
         /* sample correlation over 2D grid of time and fine freq points */
-
         max_corr = max_mag = 0;
-        for (f_fine=-10; f_fine<=10; f_fine+=delta_f_fine) {
+        for (f_fine=-f_fine_range; f_fine<=f_fine_range; f_fine+=delta_f_fine) {
             for (t=0; t<NSYMROWPILOT; t++) {
                 corr_with_pilots_comp(&corr,&mag,coh,t,f_fine_d_ph);
 
@@ -829,17 +804,10 @@ void fdm_downconvert_coh(COMP rx_baseband[COHPSK_NC][COHPSK_M+COHPSK_M/P], int N
 
 \*---------------------------------------------------------------------------*/
 
-void neon_wide_memcpy(void* dest,void* src,size_t size);
-
-
-//int cohpsk_filt_kern(float ** rx_filter_memory,float ** rx_filt, int j);
-//int cohpsk_filt_kern(float*,float*,float*);
-//int cohpsk_filt_kern(float*,float*,float*,float*);
-
 
 void rx_filter_coh(COMP rx_filt[COHPSK_NC+1][P+1], int Nc, COMP rx_baseband[COHPSK_NC+1][COHPSK_M+COHPSK_M/P], COMP rx_filter_memory[COHPSK_NC+1][+COHPSK_NFILTER], int nin)
 {
-    int c, i,j,k,l;
+    int c, i,j,k;
     int n=COHPSK_M/P;
     COMP acc;
 
@@ -847,43 +815,6 @@ void rx_filter_coh(COMP rx_filt[COHPSK_NC+1][P+1], int Nc, COMP rx_baseband[COHP
        each symbol.  Note we keep filter memory at rate M, it's just
        the filter output at rate P */
 
-#ifdef USE_NEON_KERN
-    for(i=0, j=0; i<nin; i+=n,j++) {
-
-		/* latest input sample */
-
-		for(c=0; c<Nc; c++){
-			k=COHPSK_NFILTER-n;
-
-			neon_wide_memcpy(&rx_filter_memory[c][k],&rx_baseband[c][i],n*sizeof(COMP));
-			//memcpy(&rx_filter_memory[c][k],&rx_baseband[c][i],n*sizeof(COMP));
-//			for(k=COHPSK_NFILTER-n,l=i; k<COHPSK_NFILTER; k++,l++)
-//				rx_filter_memory[c][k] = rx_baseband[c][l];
-
-		}
-		/* convolution (filtering) */
-
-		//for(c=0; c<Nc; c++){
-		//	cohpsk_filt_kern(NULL,&rx_filter_memory[c][0],&rx_filt[c][j]);
-		//}
-		//fprintf(stderr,"rfm:%p\n",rx_filter_memory[0]);
-		//fprintf(stderr,"so:%d %x %x %x\n",sizeof(rx_filt[0]),rx_filt,&rx_filt[0],&rx_filt[1]);
-		//cohpsk_filt_kern(&rx_filter_memory[0],&rx_filt[0],j);
-
-		for(c=0; c<Nc; c+=2){
-			//cohpsk_filt_kern(&rx_filter_memory[c][0],&rx_filt[c][j],&rx_filter_memory[c+1][0],&rx_filt[c+1][j]);
-			cohpsk_filt_kern(&rx_filter_memory[c][0],&rx_filter_memory[c+1][0],&rx_filt[c][j],&rx_filt[c+1][j]);
-		}
-
-
-	/* make room for next input sample */
-
-	for(c=0; c<Nc; c++)
-		//memcpy(&rx_filter_memory[c][0],&rx_filter_memory[c][n],(COHPSK_NFILTER-n)*sizeof(COMP));
-		neon_wide_memcpy(&rx_filter_memory[c][0],&rx_filter_memory[c][n],(COHPSK_NFILTER-n)*sizeof(COMP));
-
-    }
-#else
     for(i=0, j=0; i<nin; i+=n,j++) {
 
 		/* latest input sample */
@@ -895,46 +826,25 @@ void rx_filter_coh(COMP rx_filt[COHPSK_NC+1][P+1], int Nc, COMP rx_baseband[COHP
 		/* convolution (filtering) */
 
 		for(c=0; c<Nc; c++) {
+			/* Cast into const so the compiler doesn't expect aliasing */
 			const COMP * rx_filt_lc = &rx_filter_memory[c][0];
 			acc.real = 0.0f;
 			acc.imag = 0.0f;
-			COMP acc2;
-			for(k=0; k<COHPSK_NFILTER; k++)
+			for(k=0; k<COHPSK_NFILTER; k++){
 				acc = cadd(acc, fcmult(gt_alpha5_root_coh[k], rx_filt_lc[k]));
+			}
 			rx_filt[c][j] = acc;
 		}
-	/* make room for next input sample */
 
-	for(c=0; c<Nc; c++)
-		memcpy(&rx_filter_memory[c][0],&rx_filter_memory[c][n],(COHPSK_NFILTER-n)*sizeof(COMP));
+		/* make room for next input sample */
+		for(c=0; c<Nc; c++){
+			memcpy(&rx_filter_memory[c][0],&rx_filter_memory[c][n],(COHPSK_NFILTER-n)*sizeof(COMP));
+		}
     }
-#endif
-
 
     assert(j <= (P+1)); /* check for any over runs */
 }
 
-/*
- * r1 = rx_filter_memory[c]
- * r3 = rx_filter_memory[c+1]
- * r2 = gt_alpha5...
- * r5 = &rx_filt[c][j]
- *
- * r0 = gt_alpha5...
- * r1 = rx_filtor_memory[c]
- * r2 = &rx_filt[c][j]
- *
- * vadd.i32 r4, r0, #4800
- * vmov.i32 q8,#0
- * ikloop:
- *   vld1.32 q0, [r0]! # { filt, filt, filt+, filt+ }
- *   vld1.32 q1, [r1]! # { mem.r, mem.i, mem+.r, mem+.i }
- *   vmla.f32 q8, q0, q1
- *   cmp r4, r0
- *   ble ikloop
- * vadd.f32 d16, d16, d17
- * vst1.32 d16, [r2]
- */
 
 /*---------------------------------------------------------------------------*\
 
@@ -1120,12 +1030,9 @@ void cohpsk_demod(struct COHPSK *coh, float rx_bits[], int *sync_good, COMP rx_f
         f_est = 0.0;
 
         coh->f_est -= 20;
-        if(coh->f_est < FDMDV_FCENTRE - 40.0){
-        	coh->f_est = FDMDV_FCENTRE + 40;
-        	fprintf(stderr,"+");
+        if(coh->f_est < FDMDV_FCENTRE - 60.0){
+        	coh->f_est = FDMDV_FCENTRE + 60;
         }
-        else fprintf(stderr," ");
-        fprintf(stderr,"coh_f:%f\n",coh->f_est);
 
         //for (coh->f_est = FDMDV_FCENTRE-40.0; coh->f_est <= FDMDV_FCENTRE+40.0; coh->f_est += 40.0)
         {
