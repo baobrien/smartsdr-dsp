@@ -436,6 +436,8 @@ static void* _sched_waveform_thread(void* param)
 	// show that we are running
 	BufferDescriptor buf_desc;
 
+	FILE * rfdump = fopen("rfdump.iqf32","w+");
+
 	while( !_waveform_thread_abort )
 	{
 		// wait for a buffer descriptor to get posted
@@ -577,7 +579,20 @@ static void* _sched_waveform_thread(void* param)
 									demod_in[i] = cbReadFloat(RX2_cb);
 								}
 
+
+								struct timeval tv;
+								uint64_t demod_time_st;
+								uint64_t demod_time_en;
+								gettimeofday(&tv,NULL);
+								demod_time_st = 1000000 * tv.tv_sec + tv.tv_usec;
+
 								nout = freedv_floatrx(_freedvS, speech_out, demod_in);
+
+								gettimeofday(&tv,NULL);
+								demod_time_en = 1000000 * tv.tv_sec + tv.tv_usec;
+								uint64_t demod_time = demod_time_en-demod_time_st;
+								//if(demod_time>30000)
+									fprintf(stderr,"demod time:%lld\n",demod_time);
 
 								if ( freedv_get_sync(_freedvS) ) {
 									/* Increase count for turning bypass off */
@@ -734,7 +749,6 @@ static void* _sched_waveform_thread(void* param)
                                 cbWriteFloat(TX1_cb, ((Complex*)buf_desc->buf_ptr)[i].real);
 
                             }
-
     //
                             // Check for >= 384 samples in TX1_cb and spin downsampler
                             //	Convert to shorts and move to TX2_cb.
@@ -760,14 +774,28 @@ static void* _sched_waveform_thread(void* param)
 
                             int n_speech = freedv_get_n_speech_samples(_freedvS);
                             int n_modem_nom = freedv_get_n_nom_modem_samples(_freedvS);
-							if ( csbContains(TX2_cb) >= n_speech )
+							while ( csbContains(TX2_cb) >= n_speech )
 							{
+
 								for( i=0 ; i< n_speech ; i++)
 								{
 									speech_in[i] = cbReadShort(TX2_cb);
 								}
 
+								struct timeval tv;
+								uint64_t demod_time_st;
+								uint64_t demod_time_en;
+								gettimeofday(&tv,NULL);
+								demod_time_st = 1000000 * tv.tv_sec + tv.tv_usec;
+
 								freedv_comptx(_freedvS, mod_out, speech_in);
+
+								gettimeofday(&tv,NULL);
+								demod_time_en = 1000000 * tv.tv_sec + tv.tv_usec;
+								uint64_t demod_time = demod_time_en-demod_time_st;
+								if(demod_time>30000)
+									fprintf(stderr,"mod time:%lld\n",demod_time);
+
 								for( i=0 ; i < n_modem_nom ; i++)
 								{
 									cbWriteComp(TX3_cb, ((Complex*)mod_out)[i]);
@@ -786,14 +814,14 @@ static void* _sched_waveform_thread(void* param)
                             //	and spin the upsampler. Move output to TX4_cb.
 
 
-                            while(ccbContains(TX3_cb) >= (bypass_8kconv?384:128))
+                            if(ccbContains(TX3_cb) >= (bypass_8kconv?384:128))
                             {
                             	if(!bypass_8kconv){
 									for( i=0 ; i<128 ; i++)
 									{
 										cssample = cbReadComp(TX3_cb);
-										tx_float_in_8k_r[i+MEM_8] = cssample.real;
-										tx_float_in_8k_i[i+MEM_8] = cssample.imag;
+										tx_float_in_8k_r[i+MEM_8] = cssample.real*.0001220703;
+										tx_float_in_8k_i[i+MEM_8] = cssample.imag*.0001220703;
 									}
 
 									fdmdv_8_to_24(tx_float_out_24k_r, &tx_float_in_8k_r[MEM_8], 128);
@@ -855,6 +883,7 @@ static void* _sched_waveform_thread(void* param)
                                     ((Complex*)buf_desc->buf_ptr)[i] = cbReadComp(TX4_cb);
                                 }
                             } else {
+                            	output("TX Starved buffer out\n");
                                 memset( buf_desc->buf_ptr, 0, PACKET_SAMPLES * sizeof(Complex));
 
                                 if(initial_tx)
@@ -862,6 +891,7 @@ static void* _sched_waveform_thread(void* param)
                             }
 
                             emit_waveform_output(buf_desc);
+
                             if ( flush_tx ) {
                                 inhibit_tx = TRUE;
 

@@ -106,6 +106,9 @@ struct COHPSK {
     /* tx amplitude weights for each carrier for test/instrumentation */
 
     float          carrier_ampl[COHPSK_NC*ND];
+
+    /* Flag enabling simple freq est mode */
+    int            freq_est_mode_reduced;
 };
 
 void bits_to_qpsk_symbols(COMP tx_symb[][COHPSK_NC*COHPSK_ND], int tx_bits[], int nbits);

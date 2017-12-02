@@ -188,6 +188,9 @@ struct COHPSK *cohpsk_create(void)
     coh->ptest_bits_coh_tx = coh->ptest_bits_coh_rx[0] = coh->ptest_bits_coh_rx[1] = (int*)test_bits_coh;
     coh->ptest_bits_coh_end = (int*)test_bits_coh + sizeof(test_bits_coh)/sizeof(int);
 
+    /* Disable 'reduce' frequency estimation mode */
+    coh->freq_est_mode_reduced = 0;
+
     return coh;
 }
 
@@ -508,9 +511,9 @@ void tx_filter_and_upconvert_coh(COMP tx_fdm[], int Nc,const COMP tx_symbols[],
 	for(c=0; c<Nc; c++)
 	    tx_filter_memory[c][i] = tx_filter_memory[c][i+1];
 
-    for(c=0; c<Nc; c++) {
-	tx_filter_memory[c][COHPSK_NSYM-1].real = 0.0;
-	tx_filter_memory[c][COHPSK_NSYM-1].imag = 0.0;
+	for(c=0; c<Nc; c++) {
+		tx_filter_memory[c][COHPSK_NSYM-1].real = 0.0;
+		tx_filter_memory[c][COHPSK_NSYM-1].imag = 0.0;
     }
 }
 
@@ -579,8 +582,13 @@ void frame_sync_fine_freq_est(struct COHPSK *coh, COMP ch_symb[][COHPSK_NC*ND], 
     float f_fine, mag, max_corr, max_mag, corr, delta_f_fine, f_fine_range ;
     COMP f_fine_d_ph;
 
-    delta_f_fine = 1.3f;
-    f_fine_range = 10.0f;
+	if(coh->freq_est_mode_reduced){
+		delta_f_fine = 1.3;
+		f_fine_range = 10;
+    }else{
+		delta_f_fine = .25;
+		f_fine_range = 20;
+    }
 
 	/* Represent f_fine scan as delta2-phase */
 	const COMP f_fine_d2_ph = comp_exp_j(2*M_PI*delta_f_fine/COHPSK_RS);
@@ -980,6 +988,24 @@ void rate_Fs_rx_processing(struct COHPSK *coh, COMP ch_symb[][COHPSK_NC*ND], COM
     coh->rx_timing = rx_timing;
 }
 
+/*---------------------------------------------------------------------------*\
+
+  FUNCTION....: cohpsk_set_freq_est_mode()
+  AUTHOR......: Brady O'Brien
+  DATE CREATED: 12 Dec 2017
+
+  Enables or disables a 'simple' frequency estimation mode. Simple frequency
+  estimation uses substantially less CPU when cohpsk modem is not sunk than
+  default mode, but may take many frames to sync.
+
+\*---------------------------------------------------------------------------*/
+void cohpsk_set_freq_est_mode(struct COHPSK *coh, int use_simple_mode){
+	if(use_simple_mode){
+		coh->freq_est_mode_reduced = 1;
+	}else{
+		coh->freq_est_mode_reduced = 0;
+	}
+}
 
 /*---------------------------------------------------------------------------*\
 
@@ -999,7 +1025,7 @@ void rate_Fs_rx_processing(struct COHPSK *coh, COMP ch_symb[][COHPSK_NC*ND], COM
 void cohpsk_demod(struct COHPSK *coh, float rx_bits[], int *sync_good, COMP rx_fdm[], int *nin_frame)
 {
     COMP  ch_symb[NSW*NSYMROWPILOT][COHPSK_NC*ND];
-    int   i, j, sync, anext_sync, next_sync, nin, r, c;
+    int   i, j, sync, anext_sync, next_sync, nin, r, c, ns_done;
     float max_ratio, f_est;
 
     assert(*nin_frame <= COHPSK_MAX_SAMPLES_PER_FRAME);
@@ -1017,7 +1043,6 @@ void cohpsk_demod(struct COHPSK *coh, float rx_bits[], int *sync_good, COMP rx_f
 
     if (sync == 0) {
 
-        /* we can test +/- 20Hz, so we break this up into 3 tests to cover +/- 60Hz */
 
         max_ratio = 0.0;
         f_est = 0.0;
@@ -1027,8 +1052,26 @@ void cohpsk_demod(struct COHPSK *coh, float rx_bits[], int *sync_good, COMP rx_f
         	coh->f_est = FDMDV_FCENTRE + 60;
         }
 
+        if(!coh->freq_est_mode_reduced){
+        	coh->f_est = FDMDV_FCENTRE-40.0;
+        }
+
+        ns_done = 0;
         //for (coh->f_est = FDMDV_FCENTRE-40.0; coh->f_est <= FDMDV_FCENTRE+40.0; coh->f_est += 40.0)
-        {
+        while(!ns_done){
+
+        	/* Use slower freq estimator; only do one chunk of freq range */
+        	if(coh->freq_est_mode_reduced){
+        		coh->f_est -= 20;
+				if(coh->f_est < FDMDV_FCENTRE - 60.0){
+					coh->f_est = FDMDV_FCENTRE + 60;
+				}
+				ns_done = 1;
+        	}else{
+                /* we can test +/- 20Hz, so we break this up into 3 tests to cover +/- 60Hz */
+        		if(coh->f_est > FDMDV_FCENTRE+40.0) ns_done = 1;
+        	}
+
             if (coh->verbose)
                 fprintf(stderr, "  [%d] acohpsk.f_est: %f +/- 20\n", coh->frame, coh->f_est);
 
@@ -1047,6 +1090,10 @@ void cohpsk_demod(struct COHPSK *coh, float rx_bits[], int *sync_good, COMP rx_f
                     f_est       = coh->f_est - coh->f_fine_est;
                     next_sync   = anext_sync;
                 }
+            }
+
+            if(!coh->freq_est_mode_reduced){
+        		coh->f_est += 40;
             }
         }
 

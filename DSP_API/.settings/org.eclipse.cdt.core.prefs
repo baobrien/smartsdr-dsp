@@ -1,4 +1,14 @@
 eclipse.preferences.version=1
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.1763970322/PROJDIR/delimiter=\:
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.1763970322/PROJDIR/operation=append
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.1763970322/PROJDIR/value=${ProjDirPath}
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.1763970322/append=true
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.1763970322/appendContributed=true
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.883002708/PROJDIR/delimiter=\:
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.883002708/PROJDIR/operation=append
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.883002708/PROJDIR/value=${ProjDirPath}
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.883002708/append=true
+environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050.883002708/appendContributed=true
 environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050/PROJDIR/delimiter=\:
 environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050/PROJDIR/operation=append
 environment/project/cdt.managedbuild.config.gnu.exe.release.2130310972.1951913050/PROJDIR/value=${ProjDirPath}
