@@ -351,6 +351,10 @@ static void _sched_waveform_change_fdv_mode(){
 		_freedvS->fsk->f1_tx = -1800;
 	}
 
+	// Use less intense inital freq. est in 700C mode
+	if( fdv_mode == FREEDV_MODE_700C){
+		cohpsk_set_freq_est_mode(_freedvS->cohpsk,1);
+	}
     freedv_set_callback_txt(_freedvS, my_put_next_rx_char, my_get_next_tx_char, &_my_cb_state);
 }
 
@@ -433,14 +437,21 @@ static void* _sched_waveform_thread(void* param)
     nco_2400a.real = 1;
     nco_2400a.imag = 0;
 
+
+	struct timeval tv;
+	uint64_t demod_time_st;
+	uint64_t demod_time_en;
+	uint64_t demod_time_st_old;
+
 	// show that we are running
 	BufferDescriptor buf_desc;
 
-	FILE * rfdump = fopen("rfdump.iqf32","w+");
+	//FILE * rfdump = fopen("rfdump.iqf32","w+");
 
 	while( !_waveform_thread_abort )
 	{
 		// wait for a buffer descriptor to get posted
+		sched_yield();
 		sem_wait(&sched_waveform_sem);
 		if(!_waveform_thread_abort)
 		{
@@ -584,6 +595,7 @@ static void* _sched_waveform_thread(void* param)
 								uint64_t demod_time_st;
 								uint64_t demod_time_en;
 								gettimeofday(&tv,NULL);
+								demod_time_st_old = demod_time_st;
 								demod_time_st = 1000000 * tv.tv_sec + tv.tv_usec;
 
 								nout = freedv_floatrx(_freedvS, speech_out, demod_in);
@@ -592,7 +604,8 @@ static void* _sched_waveform_thread(void* param)
 								demod_time_en = 1000000 * tv.tv_sec + tv.tv_usec;
 								uint64_t demod_time = demod_time_en-demod_time_st;
 								//if(demod_time>30000)
-									fprintf(stderr,"demod time:%lld\n",demod_time);
+									fprintf(stderr,"demod time:%lld	frame time:%lld\n",demod_time,demod_time_st-demod_time_st_old);
+
 
 								if ( freedv_get_sync(_freedvS) ) {
 									/* Increase count for turning bypass off */
@@ -782,10 +795,8 @@ static void* _sched_waveform_thread(void* param)
 									speech_in[i] = cbReadShort(TX2_cb);
 								}
 
-								struct timeval tv;
-								uint64_t demod_time_st;
-								uint64_t demod_time_en;
 								gettimeofday(&tv,NULL);
+								demod_time_st_old = demod_time_st;
 								demod_time_st = 1000000 * tv.tv_sec + tv.tv_usec;
 
 								freedv_comptx(_freedvS, mod_out, speech_in);
@@ -793,8 +804,10 @@ static void* _sched_waveform_thread(void* param)
 								gettimeofday(&tv,NULL);
 								demod_time_en = 1000000 * tv.tv_sec + tv.tv_usec;
 								uint64_t demod_time = demod_time_en-demod_time_st;
-								if(demod_time>30000)
-									fprintf(stderr,"mod time:%lld\n",demod_time);
+
+								//if(demod_time>30000)
+								if(demod_time_st-demod_time_st_old > 81000)
+									fprintf(stderr,"demod time:%lld	frame time:%lld\n",demod_time,demod_time_st-demod_time_st_old);
 
 								for( i=0 ; i < n_modem_nom ; i++)
 								{
@@ -805,7 +818,7 @@ static void* _sched_waveform_thread(void* param)
 								mode_status_countdown--;
 								if(mode_status_countdown <= 0){
 									mode_status_countdown = mode_status_time;
-									_sched_waveform_send_mode_status();
+									//_sched_waveform_send_mode_status();
 								}
 
 							}
@@ -877,6 +890,7 @@ static void* _sched_waveform_thread(void* param)
 						if ( !inhibit_tx ) {
                             if(ccbContains(TX4_cb) >= tx_check_samples )
                             {
+                            	fprintf(stderr,"tbs:%d\n",ccbContains(TX4_cb));
                                 for( i = 0 ; i < PACKET_SAMPLES ; i++)
                                 {
                                     // Set up the outbound packet
@@ -894,6 +908,7 @@ static void* _sched_waveform_thread(void* param)
 
                             if ( flush_tx ) {
                                 inhibit_tx = TRUE;
+                                output("flushing\n");
 
                                 while ( ccbContains(TX4_cb) > 0 ) {
 
