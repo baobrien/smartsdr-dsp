@@ -1,6 +1,10 @@
 #!/bin/sh
 
-#usage: make-waveform <waveform name> <path to binary> <path to config>
+
+if [ "$#" -ne 3 ]; then
+  echo "usage: $0 <waveform name> <path to binary> <path to config>"
+  exit
+fi
 
 WF_NAME=$1
 WF_BIN=$2
